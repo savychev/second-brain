@@ -1,0 +1,24 @@
+# Maven
+target/
+
+# Локальные данные заметок (не коммитим личные мысли)
+data/
+*.json.tmp
+
+# Локальные настройки Claude Code (персональные разрешения)
+.claude/settings.local.json
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# ОС
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log

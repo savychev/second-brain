@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(command -v mvn gradle)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/reser/.m2/**)",
+      "Read(//c/Users/reser/scoop/**)",
+      "Bash(SECOND_BRAIN_DATA=\"$\\(pwd\\)/data/notes.json\" java -jar target/second-brain.jar \"надо купить билеты на самолёт до пятницы #поездка\")",
+      "Bash(java -jar target/second-brain.jar \"https://spring.io/guides почитать\")",
+      "Bash(java -jar target/second-brain.jar)",
+      "PowerShell(cd \"C:\\\\Projects\\\\second-brain\"; $env:SECOND_BRAIN_DATA=\"C:\\\\Projects\\\\second-brain\\\\data\\\\ps-test.json\"; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; java -jar target\\\\second-brain.jar \"надо позвонить врачу завтра #здоровье\"; Write-Output \"=== storage ===\"; Get-Content -Raw -Encoding UTF8 \"C:\\\\Projects\\\\second-brain\\\\data\\\\ps-test.json\")",
+      "PowerShell(cd \"C:\\\\Projects\\\\second-brain\"; $env:SECOND_BRAIN_DATA=\"C:\\\\Projects\\\\second-brain\\\\data\\\\flag-test.json\"; Remove-Item $env:SECOND_BRAIN_DATA -ErrorAction SilentlyContinue; Write-Output \"--- try1: -Dsun.jnu.encoding=UTF-8 ---\"; java \"-Dsun.jnu.encoding=UTF-8\" \"-Dfile.encoding=UTF-8\" -jar target\\\\second-brain.jar \"надо позвонить врачу\"; Write-Output \"--- try2: JAVA_TOOL_OPTIONS ---\"; $env:JAVA_TOOL_OPTIONS=\"-Dsun.jnu.encoding=UTF-8\"; java -jar target\\\\second-brain.jar \"идея тёмная тема\"; $env:JAVA_TOOL_OPTIONS=\"\")",
+      "PowerShell(cd \"C:\\\\Projects\\\\second-brain\"; $env:SECOND_BRAIN_DATA=\"C:\\\\Projects\\\\second-brain\\\\data\\\\sb-test.json\"; Remove-Item $env:SECOND_BRAIN_DATA -ErrorAction SilentlyContinue; .\\\\sb.ps1 \"надо позвонить врачу завтра #здоровье\"; .\\\\sb.ps1 \"идея: тёмная тема для приложения\"; Write-Output \"=== storage ===\"; Get-Content -Raw -Encoding UTF8 $env:SECOND_BRAIN_DATA)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(echo \"git user.name: $\\(git config user.name\\)\")",
+      "Bash(echo \"git user.email: $\\(git config user.email\\)\")",
+      "Bash(git --version)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit -q -m ' *)"
+    ]
+  }
+}

@@ -1,0 +1,180 @@
+package com.secondbrain.cli;
+
+import com.secondbrain.core.CaptureService;
+import com.secondbrain.model.Note;
+import com.secondbrain.model.NoteType;
+import com.secondbrain.storage.NoteRepository;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Консольный интерфейс: интерактивный ввод мыслей и просмотр истории.
+ *
+ * <p>Команды REPL:
+ * <ul>
+ *   <li>любой текст — захватить мысль;</li>
+ *   <li>{@code :list [TYPE]} — показать все заметки (или только выбранного типа);</li>
+ *   <li>{@code :stats} — счётчики по типам;</li>
+ *   <li>{@code :help} — помощь;</li>
+ *   <li>{@code :quit} / {@code :exit} — выход.</li>
+ * </ul>
+ */
+public class ConsoleApp {
+
+    private static final DateTimeFormatter TS =
+            DateTimeFormatter.ofPattern("dd.MM HH:mm").withZone(ZoneId.systemDefault());
+
+    private final CaptureService captureService;
+    private final NoteRepository repository;
+    private final PrintStream out;
+
+    public ConsoleApp(CaptureService captureService, NoteRepository repository, PrintStream out) {
+        this.captureService = captureService;
+        this.repository = repository;
+        this.out = out;
+    }
+
+    /** Захватывает одну мысль и печатает результат (режим одной команды). */
+    public void captureOnce(String text) {
+        if (text == null || text.isBlank()) {
+            out.println("Пустая мысль — нечего сохранять.");
+            return;
+        }
+        CaptureService.Captured c = captureService.capture(text.trim(), "console");
+        printCaptured(c);
+    }
+
+    /** Захватывает одну мысль из всего содержимого stdin (надёжный one-shot в UTF-8). */
+    public void captureFromStdin(InputStream in) {
+        try {
+            String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // Убираем возможный BOM (PowerShell добавляет его при пайпе в native-процесс).
+            if (!text.isEmpty() && text.charAt(0) == '﻿') {
+                text = text.substring(1);
+            }
+            captureOnce(text.trim());
+        } catch (Exception e) {
+            out.println("Ошибка чтения ввода: " + e.getMessage());
+        }
+    }
+
+    /** Запускает интерактивный цикл ввода. */
+    public void repl(InputStream in) {
+        printBanner();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) {
+                    prompt();
+                    continue;
+                }
+                if (line.startsWith(":")) {
+                    if (!handleCommand(line)) {
+                        out.println("До встречи. Голова свободна 🧠");
+                        return;
+                    }
+                } else {
+                    printCaptured(captureService.capture(line, "console"));
+                }
+                prompt();
+            }
+        } catch (Exception e) {
+            out.println("Ошибка ввода: " + e.getMessage());
+        }
+    }
+
+    /** @return false, если нужно завершить работу. */
+    private boolean handleCommand(String line) {
+        String[] parts = line.split("\\s+", 2);
+        String cmd = parts[0].toLowerCase(Locale.ROOT);
+        String arg = parts.length > 1 ? parts[1].trim() : "";
+        switch (cmd) {
+            case ":quit", ":exit", ":q" -> {
+                return false;
+            }
+            case ":help", ":h" -> printHelp();
+            case ":stats" -> printStats();
+            case ":list", ":ls" -> printList(arg);
+            default -> out.println("Неизвестная команда: " + cmd + "  (:help — список команд)");
+        }
+        return true;
+    }
+
+    private void printCaptured(CaptureService.Captured c) {
+        Note n = c.note();
+        out.printf("  ✓ [%s] сохранено%n", n.type());
+        out.printf("    %s%n", c.classification().reason());
+        if (!n.tags().isEmpty()) {
+            out.printf("    теги: %s%n", String.join(", ", n.tags()));
+        }
+    }
+
+    private void printList(String arg) {
+        List<Note> notes;
+        if (arg.isEmpty()) {
+            notes = repository.findAll();
+        } else {
+            NoteType type = parseType(arg);
+            if (type == null) {
+                out.println("Неизвестный тип: " + arg + "  (IDEA | TASK | LINK | NOTE)");
+                return;
+            }
+            notes = repository.findByType(type);
+        }
+        if (notes.isEmpty()) {
+            out.println("Пока пусто.");
+            return;
+        }
+        for (Note n : notes) {
+            out.printf("  %s  %-4s  %s%n", TS.format(n.createdAt()), n.type(), n.text());
+        }
+        out.printf("  — всего: %d%n", notes.size());
+    }
+
+    private void printStats() {
+        out.printf("  Всего заметок: %d%n", repository.count());
+        for (NoteType type : NoteType.values()) {
+            out.printf("    %-4s : %d%n", type, repository.findByType(type).size());
+        }
+    }
+
+    private static NoteType parseType(String s) {
+        try {
+            return NoteType.valueOf(s.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private void printBanner() {
+        out.println("╔══════════════════════════════════════════════╗");
+        out.println("║  Second Brain — точка захвата мыслей          ║");
+        out.println("╚══════════════════════════════════════════════╝");
+        out.println("Пиши мысль и жми Enter. :help — команды, :quit — выход.");
+        prompt();
+    }
+
+    private void printHelp() {
+        out.println("Команды:");
+        out.println("  <текст>        захватить мысль (IDEA/TASK/LINK/NOTE определяется автоматически)");
+        out.println("  :list [ТИП]    показать все заметки или только выбранного типа");
+        out.println("  :stats         счётчики по типам");
+        out.println("  :help          эта справка");
+        out.println("  :quit          выход");
+    }
+
+    private void prompt() {
+        out.print("› ");
+        out.flush();
+    }
+}

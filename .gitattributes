@@ -1,0 +1,10 @@
+# Нормализуем переносы строк: в репозитории всегда LF.
+* text=auto eol=lf
+
+# Windows-скрипты оставляем с CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+mvnw.cmd text eol=crlf
+
+# Бинарные — не трогаем.
+*.jar binary
