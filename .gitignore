@@ -22,3 +22,6 @@ Thumbs.db
 
 # Логи
 *.log
+
+# Claude Code local config
+.claude/
