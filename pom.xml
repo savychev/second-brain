@@ -52,6 +52,22 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.3.1</version>
+                <configuration>
+                    <!--
+                      Предохранитель: тесты не должны иметь возможности достучаться
+                      до настоящего Notion. Путь к настройкам уводим на заведомо
+                      отсутствующий файл, а переменную с токеном гасим пустым значением.
+                      Без этого первый же тест, поднимающий полное приложение, начал бы
+                      создавать страницы в личном workspace при каждом `mvn test`.
+                    -->
+                    <systemPropertyVariables>
+                        <secondbrain.notion.config>${project.build.directory}/no-notion-config-in-tests.properties</secondbrain.notion.config>
+                    </systemPropertyVariables>
+                    <environmentVariables>
+                        <NOTION_TOKEN></NOTION_TOKEN>
+                        <NOTION_CONFIG_FILE></NOTION_CONFIG_FILE>
+                    </environmentVariables>
+                </configuration>
             </plugin>
 
             <!-- Executable fat jar: java -jar target/second-brain.jar -->

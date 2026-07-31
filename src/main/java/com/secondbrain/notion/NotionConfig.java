@@ -30,6 +30,15 @@ public final class NotionConfig {
     /** Имя файла с локальными настройками (в .gitignore). */
     public static final String CONFIG_FILE = "notion.properties";
 
+    /**
+     * Системное свойство, перекрывающее путь к файлу настроек.
+     *
+     * <p>Существует ради безопасности тестов: сборка направляет его на заведомо
+     * отсутствующий файл, поэтому ни один тест не может случайно взять боевой токен
+     * и начать создавать страницы в настоящем Notion. См. surefire в pom.xml.
+     */
+    public static final String CONFIG_PATH_PROPERTY = "secondbrain.notion.config";
+
     private static final String ENV_TOKEN = "NOTION_TOKEN";
     private static final String PROP_TOKEN = "notion.token";
 
@@ -41,9 +50,21 @@ public final class NotionConfig {
         this.databaseIds = new EnumMap<>(databaseIds);
     }
 
-    /** Загружает настройки из файла и переменных окружения. */
+    /**
+     * Загружает настройки из файла и переменных окружения.
+     *
+     * <p>Путь к файлу можно перекрыть системным свойством {@link #CONFIG_PATH_PROPERTY}
+     * или переменной окружения {@code NOTION_CONFIG_FILE}.
+     */
     public static NotionConfig load() {
-        return load(Paths.get(CONFIG_FILE));
+        String override = System.getProperty(CONFIG_PATH_PROPERTY);
+        if (override == null || override.isBlank()) {
+            override = System.getenv("NOTION_CONFIG_FILE");
+        }
+        Path file = (override != null && !override.isBlank())
+                ? Paths.get(override.trim())
+                : Paths.get(CONFIG_FILE);
+        return load(file);
     }
 
     /** Загружает настройки из указанного файла (переменные окружения имеют приоритет). */

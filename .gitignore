@@ -11,6 +11,14 @@ data/
 # Секреты Notion (токен интеграции). Пример — в notion.properties.example
 notion.properties
 
+# Файлы базы SQLite: там лежат личные заметки, в публичный репозиторий им нельзя.
+# -wal и -shm — служебные файлы режима WAL, появляются рядом с базой.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
 # IDE
 .idea/
 *.iml
