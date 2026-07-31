@@ -25,4 +25,18 @@ public interface NoteRepository {
 
     /** Количество сохранённых заметок. */
     long count();
+
+    /**
+     * Заметки, ещё не отправленные в Notion — локальная очередь досылки.
+     * Порядок: от старых к новым, чтобы Notion получил их в хронологии захвата.
+     */
+    List<Note> findUnsynced();
+
+    /**
+     * Помечает заметку как отправленную в Notion.
+     *
+     * @param noteId       локальный id заметки
+     * @param notionPageId id созданной страницы в Notion
+     */
+    void markSynced(String noteId, String notionPageId);
 }

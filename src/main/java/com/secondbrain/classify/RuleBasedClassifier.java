@@ -3,7 +3,6 @@ package com.secondbrain.classify;
 import com.secondbrain.model.NoteType;
 
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * Классификатор по правилам (этап 1).
@@ -26,13 +25,6 @@ import java.util.regex.Pattern;
  * {@code RuleBasedClassifierTest} (критерий приёмки P0 №2 — ≥80%).
  */
 public class RuleBasedClassifier implements Classifier {
-
-    /** URL: http(s)://…, www.… или домен вида example.com/… */
-    private static final Pattern URL = Pattern.compile(
-            "(https?://\\S+)"
-                    + "|(www\\.\\S+)"
-                    + "|(\\b[\\p{L}\\d-]+\\.(?:com|ru|org|io|net|dev|me|ai|app|co|info|edu|gov)\\b\\S*)",
-            Pattern.CASE_INSENSITIVE);
 
     /** Основы слов-действий — сигнал задачи. */
     private static final List<String> TASK_MARKERS = List.of(
@@ -61,7 +53,7 @@ public class RuleBasedClassifier implements Classifier {
         }
 
         String lower = text.toLowerCase();
-        boolean hasUrl = URL.matcher(text).find();
+        boolean hasUrl = Urls.containsUrl(text);
 
         String taskHit = firstMatch(lower, TASK_MARKERS);
         if (taskHit != null) {

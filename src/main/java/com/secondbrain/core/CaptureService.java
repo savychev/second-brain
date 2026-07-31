@@ -4,25 +4,32 @@ import com.secondbrain.classify.ClassificationResult;
 import com.secondbrain.classify.Classifier;
 import com.secondbrain.classify.Tags;
 import com.secondbrain.model.Note;
+import com.secondbrain.notion.NotionSyncService;
 import com.secondbrain.storage.NoteRepository;
 
 import java.util.List;
 
 /**
- * Захват мысли: классифицировать → извлечь теги → сохранить.
+ * Захват мысли: классифицировать → извлечь теги → сохранить локально → отправить в Notion.
  *
- * <p>Единственная точка, где мысль превращается в сохранённую заметку.
- * Порядок важен для гарантии «ноль потерь»: заметка попадает в локальное
- * хранилище всегда, отправка в Notion (этап 2) — уже поверх сохранённого.
+ * <p>Порядок критичен для гарантии «ноль потерь»: заметка сначала попадает
+ * в локальное хранилище и только потом уходит в Notion. Если отправка не удалась,
+ * заметка остаётся в очереди и уйдёт позже — захват при этом считается успешным.
  */
 public class CaptureService {
 
     private final Classifier classifier;
     private final NoteRepository repository;
+    private final NotionSyncService notionSync;
 
     public CaptureService(Classifier classifier, NoteRepository repository) {
+        this(classifier, repository, null);
+    }
+
+    public CaptureService(Classifier classifier, NoteRepository repository, NotionSyncService notionSync) {
         this.classifier = classifier;
         this.repository = repository;
+        this.notionSync = notionSync;
     }
 
     /**
@@ -30,17 +37,27 @@ public class CaptureService {
      *
      * @param text   исходный текст
      * @param source источник ("console", позже "api"/"telegram")
-     * @return сохранённая заметка вместе с деталями классификации
+     * @return сохранённая заметка, детали классификации и итог отправки в Notion
      */
     public Captured capture(String text, String source) {
         ClassificationResult result = classifier.classify(text);
         List<String> tags = Tags.extract(text);
         Note note = Note.create(text, result.type(), tags, source);
+
+        // Шаг 1 — локально. С этого момента мысль не потеряется.
         repository.save(note);
-        return new Captured(note, result);
+
+        // Шаг 2 — Notion. Неудача не отменяет захват.
+        NotionSyncService.SyncResult sync = (notionSync == null)
+                ? NotionSyncService.SyncResult.skipped("Notion не подключён")
+                : notionSync.trySync(note);
+
+        return new Captured(note, result, sync);
     }
 
-    /** Заметка + как её классифицировали (причина/уверенность). */
-    public record Captured(Note note, ClassificationResult classification) {
+    /** Заметка + как её классифицировали + что стало с отправкой в Notion. */
+    public record Captured(Note note,
+                           ClassificationResult classification,
+                           NotionSyncService.SyncResult sync) {
     }
 }

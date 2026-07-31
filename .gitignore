@@ -8,6 +8,9 @@ data/
 # Локальные настройки Claude Code (персональные разрешения)
 .claude/settings.local.json
 
+# Секреты Notion (токен интеграции). Пример — в notion.properties.example
+notion.properties
+
 # IDE
 .idea/
 *.iml

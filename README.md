@@ -4,7 +4,7 @@
   <a href="https://github.com/savychev/second-brain/actions/workflows/ci.yml"><img src="https://github.com/savychev/second-brain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Java-21-007396?logo=openjdk&logoColor=white" alt="Java 21">
   <img src="https://img.shields.io/badge/Maven-C71A36?logo=apachemaven&logoColor=white" alt="Maven">
-  <img src="https://img.shields.io/badge/tests-17%20passing-brightgreen" alt="17 tests">
+  <img src="https://img.shields.io/badge/tests-32%20passing-brightgreen" alt="32 tests">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT">
 </p>
 
@@ -18,7 +18,7 @@ place. Your head stays clear; nothing gets lost.
 >
 > 🇷🇺 Русская версия: [README.ru.md](README.ru.md)
 
-> Status: **Stage 1 — console core** ✅ · Java 21 · Maven · no runtime dependencies except Jackson
+> Status: **Stage 2 — Notion integration** ✅ · Java 21 · Maven · no runtime dependencies except Jackson
 
 ---
 
@@ -31,7 +31,7 @@ a thought into — and no system that files it automatically.
 **Second Brain** is that entry funnel: capture in seconds, automatic classification, a local
 copy guaranteeing zero loss. Storage and browsing move to Notion in stage 2+.
 
-## What it does today (Stage 1)
+## What it does today
 
 - ✅ Accepts a thought of any length and stores it with a timestamp
 - ✅ Classifies it as **IDEA / TASK / LINK / NOTE** using transparent rules
@@ -39,7 +39,9 @@ copy guaranteeing zero loss. Storage and browsing move to Notion in stage 2+.
 - ✅ Extracts `#tags`
 - ✅ Persists everything locally as JSON — nothing is lost across restarts
 - ✅ Interactive mode (REPL) and one-shot quick capture
-- ✅ 17 automated tests; correct Cyrillic handling on Windows
+- ✅ **Pushes notes to Notion** — each type into its own database
+- ✅ **Retry queue**: if Notion is down, the note waits locally and is sent on the next run
+- ✅ 32 automated tests; correct Cyrillic handling on Windows
 
 ## Quick start
 
@@ -75,10 +77,49 @@ Example session:
 › :quit
 ```
 
-REPL commands: `:list [TYPE]`, `:stats`, `:help`, `:quit`.
+REPL commands: `:list [TYPE]`, `:stats`, `:sync`, `:help`, `:quit`.
 
 > Notes are stored in `data/notes.json`. Override the path with the `SECOND_BRAIN_DATA`
 > environment variable. The `data/` folder is not committed (personal thoughts).
+
+## Notion setup
+
+The app works without it — notes are simply kept locally. To push them to Notion:
+
+1. **Create an integration** at [notion.so/my-integrations](https://www.notion.so/my-integrations)
+   → *New integration* → copy the **Internal Integration Secret**.
+2. **Create 4 databases** (ideas / tasks / links / notes) with these properties:
+   `Мысль` (title), `Захвачено` (date), `Теги` (multi-select), `Источник` (select),
+   `ID` (text); the links database also needs `Ссылка` (url).
+3. **Grant the integration access**: on the page holding the databases → `···` →
+   *Connections* → pick your integration.
+4. **Fill in the config**:
+
+```bash
+cp notion.properties.example notion.properties
+# set the token and the database ids (an id is part of the database URL)
+```
+
+The token can also come from the `NOTION_TOKEN` environment variable, which takes
+precedence over the file. `notion.properties` is never committed.
+
+### The zero-loss guarantee
+
+A note is saved locally **first** and pushed to Notion **second**. If Notion is
+unreachable the capture still succeeds and the note stays queued:
+
+```
+› need to call the doctor
+  ✓ [TASK] saved
+    action word found: "need"
+    → Notion unreachable, queued (...)
+```
+
+The queue is flushed automatically on the next run, or on demand:
+
+```bash
+java -jar target/second-brain.jar --sync    # or the :sync command in the REPL
+```
 
 ## How classification works
 
@@ -117,9 +158,10 @@ interfaces, implementations can be swapped without rewriting the rest.
 src/main/java/com/secondbrain/
 ├── App.java                     entry point (REPL / one-shot)
 ├── model/       Note, NoteType  domain model
-├── classify/    Classifier, RuleBasedClassifier, Tags
+├── classify/    Classifier, RuleBasedClassifier, Tags, Urls
 ├── storage/     NoteRepository, JsonNoteRepository
-├── core/        CaptureService  orchestration: classify → tags → save
+├── notion/      NotionClient, HttpNotionClient, NotionSyncService, NotionConfig
+├── core/        CaptureService  orchestration: classify → tags → save → push
 └── cli/         ConsoleApp      console interface
 ```
 
@@ -130,14 +172,15 @@ src/main/java/com/secondbrain/
 ```
 
 Covered: classification accuracy (≥ 80% threshold), persistence across restarts, filtering
-by type, tag extraction, end-to-end capture scenario.
+by type, tag extraction, end-to-end capture scenario, Notion request building, and retry-queue
+behaviour when Notion is unreachable.
 
 ## Roadmap
 
 | Stage | What | Status |
 |-------|------|--------|
 | 1 | Console core: model, rule-based classifier, JSON storage | ✅ done |
-| 2 | Notion API integration | ⬜ |
+| 2 | Notion API integration + retry queue | ✅ done |
 | 3 | REST API on Spring Boot + SQLite | ⬜ |
 | 4 | Smart classification via the Anthropic API | ⬜ |
 | 5 | Telegram bot as a mobile entry point | ⬜ (optional) |

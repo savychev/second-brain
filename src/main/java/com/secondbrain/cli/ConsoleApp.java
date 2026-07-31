@@ -3,6 +3,7 @@ package com.secondbrain.cli;
 import com.secondbrain.core.CaptureService;
 import com.secondbrain.model.Note;
 import com.secondbrain.model.NoteType;
+import com.secondbrain.notion.NotionSyncService;
 import com.secondbrain.storage.NoteRepository;
 
 import java.io.BufferedReader;
@@ -34,11 +35,20 @@ public class ConsoleApp {
 
     private final CaptureService captureService;
     private final NoteRepository repository;
+    private final NotionSyncService notionSync;
     private final PrintStream out;
 
     public ConsoleApp(CaptureService captureService, NoteRepository repository, PrintStream out) {
+        this(captureService, repository, null, out);
+    }
+
+    public ConsoleApp(CaptureService captureService,
+                      NoteRepository repository,
+                      NotionSyncService notionSync,
+                      PrintStream out) {
         this.captureService = captureService;
         this.repository = repository;
+        this.notionSync = notionSync;
         this.out = out;
     }
 
@@ -50,6 +60,11 @@ public class ConsoleApp {
         }
         CaptureService.Captured c = captureService.capture(text.trim(), "console");
         printCaptured(c);
+    }
+
+    /** Досылает очередь в Notion и выходит (режим {@code --sync}). */
+    public void syncOnly() {
+        printSync();
     }
 
     /** Захватывает одну мысль из всего содержимого stdin (надёжный one-shot в UTF-8). */
@@ -104,6 +119,7 @@ public class ConsoleApp {
             }
             case ":help", ":h" -> printHelp();
             case ":stats" -> printStats();
+            case ":sync" -> printSync();
             case ":list", ":ls" -> printList(arg);
             default -> out.println("Неизвестная команда: " + cmd + "  (:help — список команд)");
         }
@@ -116,6 +132,11 @@ public class ConsoleApp {
         out.printf("    %s%n", c.classification().reason());
         if (!n.tags().isEmpty()) {
             out.printf("    теги: %s%n", String.join(", ", n.tags()));
+        }
+        switch (c.sync().status()) {
+            case SENT -> out.println("    → отправлено в Notion");
+            case QUEUED -> out.printf("    → Notion недоступен, ждёт в очереди (%s)%n", c.sync().detail());
+            case SKIPPED -> { /* интеграция не настроена — молчим, чтобы не мешать */ }
         }
     }
 
@@ -146,6 +167,31 @@ public class ConsoleApp {
         for (NoteType type : NoteType.values()) {
             out.printf("    %-4s : %d%n", type, repository.findByType(type).size());
         }
+        int pending = repository.findUnsynced().size();
+        if (notionSync != null && notionSync.isEnabled()) {
+            out.printf("  Ждёт отправки в Notion: %d%n", pending);
+        }
+    }
+
+    /** Досылает накопившуюся очередь в Notion по команде {@code :sync}. */
+    private void printSync() {
+        if (notionSync == null || !notionSync.isEnabled()) {
+            out.println("  Notion не настроен — заметки хранятся только локально.");
+            out.println("  См. раздел «Настройка Notion» в README.");
+            return;
+        }
+        int pending = notionSync.pendingCount();
+        if (pending == 0) {
+            out.println("  Очередь пуста — всё уже в Notion.");
+            return;
+        }
+        out.printf("  Отправляю %d заметок…%n", pending);
+        int sent = notionSync.flushQueue();
+        if (sent == pending) {
+            out.printf("  ✓ Отправлено: %d%n", sent);
+        } else {
+            out.printf("  Отправлено %d из %d, остальные ждут — Notion недоступен.%n", sent, pending);
+        }
     }
 
     private static NoteType parseType(String s) {
@@ -169,6 +215,7 @@ public class ConsoleApp {
         out.println("  <текст>        захватить мысль (IDEA/TASK/LINK/NOTE определяется автоматически)");
         out.println("  :list [ТИП]    показать все заметки или только выбранного типа");
         out.println("  :stats         счётчики по типам");
+        out.println("  :sync          дослать в Notion всё, что ждёт в очереди");
         out.println("  :help          эта справка");
         out.println("  :quit          выход");
     }

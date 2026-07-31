@@ -3,6 +3,9 @@ package com.secondbrain;
 import com.secondbrain.classify.RuleBasedClassifier;
 import com.secondbrain.cli.ConsoleApp;
 import com.secondbrain.core.CaptureService;
+import com.secondbrain.notion.HttpNotionClient;
+import com.secondbrain.notion.NotionConfig;
+import com.secondbrain.notion.NotionSyncService;
 import com.secondbrain.storage.JsonNoteRepository;
 import com.secondbrain.storage.NoteRepository;
 
@@ -12,13 +15,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * Точка входа Second Brain (этап 1 — консольное ядро).
+ * Точка входа Second Brain.
+ *
+ * <p>Здесь — и только здесь — детали соединяются друг с другом: хранилище,
+ * классификатор, клиент Notion. Сама логика в этих классах, а не тут.
  *
  * <p>Режимы:
  * <ul>
  *   <li>без аргументов — интерактивный REPL;</li>
- *   <li>с аргументами — захватить одну мысль из аргументов и выйти
- *       (удобно для быстрого «сброса» мысли за секунды).</li>
+ *   <li>{@code --stdin} — захватить мысль из stdin (надёжный one-shot в UTF-8);</li>
+ *   <li>{@code --sync} — только дослать очередь в Notion и выйти;</li>
+ *   <li>с текстом в аргументах — захватить его и выйти.</li>
  * </ul>
  *
  * <p>Путь к хранилищу берётся из переменной окружения {@code SECOND_BRAIN_DATA}
@@ -34,8 +41,22 @@ public final class App {
         PrintStream out = new PrintStream(System.out, true, StandardCharsets.UTF_8);
 
         NoteRepository repository = new JsonNoteRepository(dataFile());
-        CaptureService captureService = new CaptureService(new RuleBasedClassifier(), repository);
-        ConsoleApp app = new ConsoleApp(captureService, repository, out);
+
+        NotionConfig notionConfig = NotionConfig.load();
+        NotionSyncService notionSync = new NotionSyncService(
+                new HttpNotionClient(notionConfig), repository, notionConfig.isEnabled());
+
+        CaptureService captureService =
+                new CaptureService(new RuleBasedClassifier(), repository, notionSync);
+        ConsoleApp app = new ConsoleApp(captureService, repository, notionSync, out);
+
+        if (args.length == 1 && args[0].equals("--sync")) {
+            app.syncOnly();
+            return;
+        }
+
+        // Досылаем то, что не ушло в прошлые разы (Notion мог быть недоступен).
+        notionSync.flushQueue();
 
         if (args.length == 1 && args[0].equals("--stdin")) {
             // Надёжный one-shot для Windows: текст приходит из stdin в UTF-8,

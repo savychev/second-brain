@@ -1,5 +1,6 @@
 package com.secondbrain.storage;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -39,7 +40,10 @@ public class JsonNoteRepository implements NoteRepository {
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-                .enable(SerializationFeature.INDENT_OUTPUT);
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                // Формат хранения будет расти: файл, записанный более новой
+                // версией, не должен ронять более старую.
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
     @Override
@@ -69,6 +73,33 @@ public class JsonNoteRepository implements NoteRepository {
     public long count() {
         synchronized (lock) {
             return readAll().size();
+        }
+    }
+
+    @Override
+    public List<Note> findUnsynced() {
+        synchronized (lock) {
+            List<Note> all = readAll();
+            all.sort(Comparator.comparing(Note::createdAt)); // от старых к новым
+            return all.stream().filter(n -> !n.isSynced()).toList();
+        }
+    }
+
+    @Override
+    public void markSynced(String noteId, String notionPageId) {
+        synchronized (lock) {
+            List<Note> all = readAll();
+            boolean changed = false;
+            for (int i = 0; i < all.size(); i++) {
+                if (all.get(i).id().equals(noteId)) {
+                    all.set(i, all.get(i).withNotionPageId(notionPageId));
+                    changed = true;
+                    break;
+                }
+            }
+            if (changed) {
+                writeAll(all);
+            }
         }
     }
 

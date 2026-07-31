@@ -1,0 +1,23 @@
+# Пример локальных настроек Notion.
+# Скопируй в notion.properties и заполни своими значениями.
+#
+#   cp notion.properties.example notion.properties
+#
+# 1) Создай интеграцию: https://www.notion.so/my-integrations → New integration
+# 2) Скопируй Internal Integration Secret в notion.token
+# 3) Создай в Notion 4 базы (идеи / задачи / ссылки / заметки) со свойствами:
+#      Мысль (title), Захвачено (date), Теги (multi-select),
+#      Источник (select), ID (text); у базы ссылок ещё Ссылка (url)
+# 4) Подключи интеграцию к странице с базами: ··· → Connections
+# 5) id базы — это часть её URL:
+#      https://notion.so/<workspace>/<ЭТО_ID>?v=...
+#
+# Любую настройку можно задать переменной окружения — она имеет приоритет:
+#   NOTION_TOKEN, NOTION_DB_IDEA, NOTION_DB_TASK, NOTION_DB_LINK, NOTION_DB_NOTE
+
+notion.token=
+
+notion.db.idea=
+notion.db.task=
+notion.db.link=
+notion.db.note=
