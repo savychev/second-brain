@@ -11,73 +11,130 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Выбор классификатора и предохранитель, не дающий тестам тратить деньги на API.
+ * Выбор провайдера классификации и предохранитель, не дающий тестам
+ * обращаться к внешним сервисам.
  */
 class ClassifiersTest {
 
+    private Path config(Path dir, String content) throws IOException {
+        Path file = dir.resolve("classifier.properties");
+        Files.writeString(file, content);
+        return file;
+    }
+
     @Test
-    @DisplayName("В тестах умная классификация выключена — API не вызывается")
-    void smartClassificationIsDisabledUnderTests() {
-        AnthropicConfig config = AnthropicConfig.load();
+    @DisplayName("В тестах классификация моделью выключена — сеть не трогаем")
+    void modelClassificationIsDisabledUnderTests() {
+        ProviderConfig config = ProviderConfig.load();
 
         assertFalse(config.isEnabled(),
-                "Тесты не должны обращаться к платному API. Проверь systemPropertyVariables "
-                        + "и environmentVariables у surefire в pom.xml.");
-        assertInstanceOf(RuleBasedClassifier.class, Classifiers.create(config),
-                "без ключа должны работать правила");
+                "Тесты не должны обращаться к внешним сервисам. Проверь "
+                        + "systemPropertyVariables и environmentVariables у surefire в pom.xml.");
+        assertInstanceOf(RuleBasedClassifier.class, Classifiers.create(config));
     }
 
     @Test
-    @DisplayName("С ключом собирается умный классификатор с подстраховкой")
-    void buildsSmartClassifierWithFallback(@TempDir Path dir) throws IOException {
-        Path file = dir.resolve("anthropic.properties");
-        Files.writeString(file, """
-                anthropic.api.key=test-key-not-real
-                anthropic.model=claude-opus-5
-                """);
-
-        AnthropicConfig config = AnthropicConfig.load(file);
+    @DisplayName("Ключ Groq → бесплатный провайдер с подстраховкой правилами")
+    void groqKeyEnablesGroq(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, "groq.api.key=test-not-real\n"));
 
         assertTrue(config.isEnabled());
-        assertEquals("claude-opus-5", config.model());
+        assertEquals(ProviderConfig.GROQ, config.provider());
+        assertEquals("openai/gpt-oss-20b", config.model(), "модель по умолчанию для Groq");
         assertInstanceOf(FallbackClassifier.class, Classifiers.create(config),
-                "умный классификатор обязан идти в паре с правилами");
+                "модель обязана идти в паре с правилами");
     }
 
     @Test
-    @DisplayName("Модель по умолчанию задана, даже если в настройках её нет")
-    void hasDefaultModel(@TempDir Path dir) throws IOException {
-        Path file = dir.resolve("anthropic.properties");
-        Files.writeString(file, "anthropic.api.key=test-key-not-real\n");
+    @DisplayName("Только ключ Anthropic → выбирается он")
+    void anthropicKeyEnablesAnthropic(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(
+                config(dir, "anthropic.api.key=test-not-real\n"));
 
-        assertEquals("claude-opus-5", AnthropicConfig.load(file).model());
+        assertEquals(ProviderConfig.ANTHROPIC, config.provider());
+        assertEquals("claude-opus-5", config.model());
     }
 
     @Test
-    @DisplayName("Таймаут ограничен: захват не должен ждать дольше цели «10 секунд»")
+    @DisplayName("Есть оба ключа → выбирается бесплатный")
+    void prefersFreeProviderWhenBothAvailable(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, """
+                groq.api.key=test-not-real
+                anthropic.api.key=test-not-real
+                """));
+
+        assertEquals(ProviderConfig.GROQ, config.provider(),
+                "по умолчанию не тратим деньги без явной просьбы");
+    }
+
+    @Test
+    @DisplayName("Провайдер можно выбрать явно, вопреки порядку по умолчанию")
+    void explicitProviderWins(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, """
+                classifier.provider=anthropic
+                groq.api.key=test-not-real
+                anthropic.api.key=test-not-real
+                """));
+
+        assertEquals(ProviderConfig.ANTHROPIC, config.provider());
+    }
+
+    @Test
+    @DisplayName("Правила можно выбрать явно, даже при наличии ключей")
+    void rulesCanBeForced(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, """
+                classifier.provider=rules
+                groq.api.key=test-not-real
+                """));
+
+        assertFalse(config.isEnabled());
+        assertInstanceOf(RuleBasedClassifier.class, Classifiers.create(config));
+    }
+
+    @Test
+    @DisplayName("Опечатка в провайдере — громкая ошибка, а не тихий уход на другой")
+    void unknownProviderFailsLoudly(@TempDir Path dir) throws IOException {
+        Path file = config(dir, "classifier.provider=grok\ngroq.api.key=test-not-real\n");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ProviderConfig.load(file));
+
+        assertTrue(e.getMessage().contains("grok"), e.getMessage());
+    }
+
+    @Test
+    @DisplayName("Выбран провайдер без ключа — тоже громкая ошибка")
+    void missingKeyForRequestedProviderFailsLoudly(@TempDir Path dir) throws IOException {
+        Path file = config(dir, "classifier.provider=groq\n");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ProviderConfig.load(file));
+
+        assertTrue(e.getMessage().contains("GROQ_API_KEY"),
+                "в сообщении должно быть, какой ключ задать: " + e.getMessage());
+    }
+
+    @Test
+    @DisplayName("Таймаут укладывается в цель «захват за 10 секунд»")
     void timeoutFitsCaptureGoal(@TempDir Path dir) throws IOException {
-        Path file = dir.resolve("anthropic.properties");
-        Files.writeString(file, "anthropic.api.key=test-key-not-real\n");
-
-        AnthropicConfig config = AnthropicConfig.load(file);
+        ProviderConfig config = ProviderConfig.load(config(dir, "groq.api.key=test-not-real\n"));
 
         assertTrue(config.timeout().toSeconds() <= 10,
-                "иначе медленный ответ модели сорвёт цель «захват за 10 секунд»");
+                "иначе медленный ответ модели сорвёт цель PRD");
     }
 
     @Test
     @DisplayName("Описание честно говорит, как классифицируются мысли")
     void describeIsHonest(@TempDir Path dir) throws IOException {
-        AnthropicConfig noKey = AnthropicConfig.load(dir.resolve("нет-такого.properties"));
-        assertTrue(Classifiers.describe(noKey).contains("правила"), Classifiers.describe(noKey));
+        String rules = ProviderConfig.load(dir.resolve("нет-такого.properties")).describe();
+        assertTrue(rules.contains("правила"), rules);
 
-        Path file = dir.resolve("anthropic.properties");
-        Files.writeString(file, "anthropic.api.key=test-key-not-real\n");
-        String withKey = Classifiers.describe(AnthropicConfig.load(file));
-        assertTrue(withKey.contains("claude-opus-5"), withKey);
-        assertTrue(withKey.contains("правила"), "подстраховка должна быть упомянута: " + withKey);
+        String groq = ProviderConfig.load(config(dir, "groq.api.key=test-not-real\n")).describe();
+        assertTrue(groq.contains("groq"), groq);
+        assertTrue(groq.contains("правила"), "подстраховка должна быть упомянута: " + groq);
     }
 }

@@ -1,7 +1,7 @@
 package com.secondbrain.cli;
 
-import com.secondbrain.classify.AnthropicConfig;
-import com.secondbrain.classify.Classifiers;
+import com.secondbrain.classify.ProviderConfig;
+
 import com.secondbrain.core.CaptureService;
 import com.secondbrain.model.Note;
 import com.secondbrain.model.NoteType;
@@ -205,8 +205,7 @@ public class ConsoleApp {
         // Путь показываем всегда: если программу запустили из другого каталога,
         // хранилище окажется пустым, и без пути это выглядит как потеря заметок.
         out.printf("  Хранилище: %s%n", repository.describe());
-        out.printf("  Классификация: %s%n",
-                Classifiers.describe(AnthropicConfig.load()));
+        out.printf("  Классификация: %s%n", ProviderConfig.load().describe());
         out.printf("  Всего заметок: %d%n", repository.count());
         for (NoteType type : NoteType.values()) {
             out.printf("    %-4s : %d%n", type, repository.findByType(type).size());

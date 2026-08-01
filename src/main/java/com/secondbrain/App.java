@@ -1,5 +1,6 @@
 package com.secondbrain;
 
+import com.secondbrain.classify.Classifier;
 import com.secondbrain.classify.Classifiers;
 import com.secondbrain.cli.ConsoleApp;
 import com.secondbrain.core.CaptureService;
@@ -69,8 +70,19 @@ public final class App {
                 new HttpNotionClient(notionConfig), repository, notionConfig.isEnabled(),
                 Storages.syncLockFromEnvironment());
 
-        CaptureService captureService =
-                new CaptureService(Classifiers.fromEnvironment(), repository, notionSync);
+        Classifier classifier;
+        try {
+            classifier = Classifiers.fromEnvironment();
+        } catch (RuntimeException e) {
+            // Та же логика, что и для хранилища: ошибка настройки должна
+            // читаться, а не выпадать стектрейсом с испорченной кириллицей.
+            out.println("Не удалось настроить классификацию.");
+            out.println("  " + e.getMessage());
+            System.exit(1);
+            return;
+        }
+
+        CaptureService captureService = new CaptureService(classifier, repository, notionSync);
         ConsoleApp app = new ConsoleApp(captureService, repository, notionSync, out);
 
         if (args.length == 1 && args[0].equals("--import-json")) {

@@ -117,7 +117,7 @@
                     -->
                     <systemPropertyVariables>
                         <secondbrain.notion.config>${project.build.directory}/no-notion-config-in-tests.properties</secondbrain.notion.config>
-                        <secondbrain.anthropic.config>${project.build.directory}/no-anthropic-config-in-tests.properties</secondbrain.anthropic.config>
+                        <secondbrain.classifier.config>${project.build.directory}/no-classifier-config-in-tests.properties</secondbrain.classifier.config>
                     </systemPropertyVariables>
                     <environmentVariables>
                         <NOTION_TOKEN></NOTION_TOKEN>
@@ -125,7 +125,9 @@
                         <!-- Тот же принцип для Anthropic: тесты не должны обращаться
                              к платному API и тратить деньги владельца. -->
                         <ANTHROPIC_API_KEY></ANTHROPIC_API_KEY>
-                        <ANTHROPIC_CONFIG_FILE></ANTHROPIC_CONFIG_FILE>
+                        <GROQ_API_KEY></GROQ_API_KEY>
+                        <SECOND_BRAIN_CLASSIFIER></SECOND_BRAIN_CLASSIFIER>
+                        <SECOND_BRAIN_CLASSIFIER_CONFIG></SECOND_BRAIN_CLASSIFIER_CONFIG>
                         <!--
                           И тот же принцип для данных: тест, поднимающий приложение
                           целиком, не должен открывать боевую базу с личными заметками.
