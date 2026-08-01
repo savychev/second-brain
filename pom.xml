@@ -56,6 +56,20 @@
             <artifactId>sqlite-jdbc</artifactId>
         </dependency>
 
+        <!--
+          Веб-слой: встроенный сервер Tomcat, разбор JSON, маршрутизация запросов.
+          Стартер — это набор: одна строка вместо десятка отдельных зависимостей.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- Проверка входящих данных по аннотациям (@NotBlank, @Size) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Тесты: JUnit, AssertJ, Mockito одним набором -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -85,6 +99,13 @@
                     <environmentVariables>
                         <NOTION_TOKEN></NOTION_TOKEN>
                         <NOTION_CONFIG_FILE></NOTION_CONFIG_FILE>
+                        <!--
+                          И тот же принцип для данных: тест, поднимающий приложение
+                          целиком, не должен открывать боевую базу с личными заметками.
+                          Уводим хранилище в target/, который чистится при сборке.
+                        -->
+                        <SECOND_BRAIN_DB>${project.build.directory}/test-data/second-brain.db</SECOND_BRAIN_DB>
+                        <SECOND_BRAIN_DATA>${project.build.directory}/test-data/notes.json</SECOND_BRAIN_DATA>
                     </environmentVariables>
                 </configuration>
             </plugin>

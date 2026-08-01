@@ -8,6 +8,7 @@ import com.secondbrain.notion.NotionConfig;
 import com.secondbrain.notion.NotionSyncService;
 import com.secondbrain.storage.NoteRepository;
 import com.secondbrain.storage.Storages;
+import org.springframework.boot.SpringApplication;
 
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,8 @@ import java.nio.charset.StandardCharsets;
  *   <li>без аргументов — интерактивный REPL;</li>
  *   <li>{@code --stdin} — захватить мысль из stdin (надёжный one-shot в UTF-8);</li>
  *   <li>{@code --sync} — только дослать очередь в Notion и выйти;</li>
+ *   <li>{@code --import-json} — перенести заметки из JSON в SQLite;</li>
+ *   <li>{@code --serve} — поднять REST API на 127.0.0.1:8080;</li>
  *   <li>с текстом в аргументах — захватить его и выйти.</li>
  * </ul>
  *
@@ -36,6 +39,15 @@ public final class App {
     public static void main(String[] args) {
         // Гарантируем корректный вывод кириллицы независимо от кодовой страницы консоли.
         PrintStream out = new PrintStream(System.out, true, StandardCharsets.UTF_8);
+
+        if (args.length > 0 && args[0].equals("--serve")) {
+            // Единственная ветка, поднимающая Spring. Всё остальное работает
+            // без него, поэтому консольный захват стартует за доли секунды
+            // и не зависит от запущенного сервера.
+            out.println("Second Brain — запуск сервера на http://127.0.0.1:8080");
+            SpringApplication.run(SecondBrainApplication.class, args);
+            return;
+        }
 
         NoteRepository repository;
         try {
