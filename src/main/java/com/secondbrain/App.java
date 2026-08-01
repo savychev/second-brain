@@ -57,6 +57,16 @@ public final class App {
                 new CaptureService(new RuleBasedClassifier(), repository, notionSync);
         ConsoleApp app = new ConsoleApp(captureService, repository, notionSync, out);
 
+        if (args.length == 1 && args[0].equals("--import-json")) {
+            // Перенос всегда идёт из JSON в SQLite, независимо от текущего выбора
+            // хранилища: команда для того и существует, чтобы подготовить переключение.
+            NoteRepository sqlite = Storages.create(Storages.SQLITE,
+                    Storages.jsonFile(), Storages.dbFile());
+            boolean ok = app.importJsonToSqlite(Storages.jsonFile(), sqlite);
+            System.exit(ok ? 0 : 1);
+            return;
+        }
+
         if (args.length == 1 && args[0].equals("--sync")) {
             app.syncOnly();
             return;

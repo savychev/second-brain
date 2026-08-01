@@ -4,6 +4,7 @@ import com.secondbrain.core.CaptureService;
 import com.secondbrain.model.Note;
 import com.secondbrain.model.NoteType;
 import com.secondbrain.notion.NotionSyncService;
+import com.secondbrain.storage.JsonToSqliteImporter;
 import com.secondbrain.storage.NoteRepository;
 
 import java.io.BufferedReader;
@@ -60,6 +61,38 @@ public class ConsoleApp {
         }
         CaptureService.Captured c = captureService.capture(text.trim(), "console");
         printCaptured(c);
+    }
+
+    /**
+     * Переносит заметки из файла JSON в базу SQLite (режим {@code --import-json}).
+     *
+     * @return {@code true}, если перенос прошёл без потери признака отправки в Notion
+     */
+    public boolean importJsonToSqlite(java.nio.file.Path jsonFile, NoteRepository target) {
+        out.printf("Импорт из %s%n", jsonFile.toAbsolutePath().normalize());
+        out.printf("        в %s%n%n", target.describe());
+
+        JsonToSqliteImporter.Report report = JsonToSqliteImporter.importAll(jsonFile, target);
+
+        out.printf("  прочитано:            %d%n", report.read());
+        out.printf("  добавлено:            %d%n", report.inserted());
+        out.printf("  уже было:             %d%n", report.alreadyPresent());
+        out.printf("  из них уже в Notion:  %d%n", report.withNotionPage());
+        out.println();
+
+        if (report.pageIdsPreserved()) {
+            out.printf("  ✓ Признак отправки сохранён у всех заметок.%n");
+            out.printf("  ✓ Ждёт отправки в Notion: %d%n", report.pendingAfter());
+            out.println();
+            out.println("  Можно переключаться: SECOND_BRAIN_STORAGE=sqlite");
+            return true;
+        }
+
+        out.printf("  ✗ ОСТАНОВИТЕСЬ: %d заметок потеряли признак отправки в Notion.%n",
+                report.lostPageIds());
+        out.println("    Переключаться на базу НЕЛЬЗЯ — досылка создаст дубликаты страниц.");
+        out.println("    Исходный файл не изменён, ничего не потеряно.");
+        return false;
     }
 
     /** Досылает очередь в Notion и выходит (режим {@code --sync}). */

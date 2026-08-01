@@ -43,9 +43,17 @@ public final class Storages {
 
     /** Создаёт хранилище, выбранное переменными окружения. */
     public static NoteRepository fromEnvironment() {
-        return create(System.getenv(ENV_KIND),
-                pathFromEnv(ENV_JSON_FILE, DEFAULT_JSON_FILE),
-                pathFromEnv(ENV_DB_FILE, DEFAULT_DB_FILE));
+        return create(System.getenv(ENV_KIND), jsonFile(), dbFile());
+    }
+
+    /** Путь к файлу JSON с учётом переменных окружения. */
+    public static Path jsonFile() {
+        return pathFromEnv(ENV_JSON_FILE, DEFAULT_JSON_FILE);
+    }
+
+    /** Путь к файлу базы SQLite с учётом переменных окружения. */
+    public static Path dbFile() {
+        return pathFromEnv(ENV_DB_FILE, DEFAULT_DB_FILE);
     }
 
     /**
