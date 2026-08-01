@@ -37,6 +37,18 @@ public final class App {
     private App() {
     }
 
+    /**
+     * Самая глубокая причина в цепочке — именно она объясняет, что чинить.
+     * Spring оборачивает исходное исключение в два-три своих.
+     */
+    private static Throwable rootCause(Throwable e) {
+        Throwable cause = e;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
+    }
+
     public static void main(String[] args) {
         // Гарантируем корректный вывод кириллицы независимо от кодовой страницы консоли.
         PrintStream out = new PrintStream(System.out, true, StandardCharsets.UTF_8);
@@ -46,7 +58,18 @@ public final class App {
             // без него, поэтому консольный захват стартует за доли секунды
             // и не зависит от запущенного сервера.
             out.println("Second Brain — запуск сервера на http://127.0.0.1:8080");
-            SpringApplication.run(SecondBrainApplication.class, args);
+            try {
+                SpringApplication.run(SecondBrainApplication.class, args);
+            } catch (RuntimeException e) {
+                // Ошибка настройки — кривой токен, недоступное хранилище —
+                // выпадает стеной Spring-трассы, где нужная строка теряется
+                // среди служебных. Повторяем первопричину последней строкой,
+                // чтобы человек увидел именно её.
+                out.println();
+                out.println("Сервер не запустился.");
+                out.println("  " + rootCause(e).getMessage());
+                System.exit(1);
+            }
             return;
         }
 

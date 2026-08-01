@@ -5,7 +5,6 @@ import com.secondbrain.model.Note;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -84,11 +83,14 @@ public class TelegramBot {
     private void pollLoop() {
         while (running.get() && !Thread.currentThread().isInterrupted()) {
             try {
-                List<TelegramClient.TelegramMessage> messages = client.getUpdates(offset);
-                for (TelegramClient.TelegramMessage message : messages) {
-                    // Сдвигаем указатель ДО обработки: иначе сообщение,
-                    // на котором что-то сломалось, придёт снова и снова.
-                    offset = Math.max(offset, message.updateId() + 1);
+                TelegramClient.Updates updates = client.getUpdates(offset);
+                // Сдвигаем указатель ДО обработки и сразу по всей пачке.
+                // «До обработки» — иначе сообщение, на котором что-то
+                // сломалось, придёт снова и снова. «По всей пачке» — иначе
+                // обновление, из которого сообщения не вышло, не подтвердится
+                // никогда, и Telegram будет отдавать его без остановки.
+                offset = Math.max(offset, updates.nextOffset());
+                for (TelegramClient.TelegramMessage message : updates.messages()) {
                     handle(message);
                 }
             } catch (TelegramException e) {

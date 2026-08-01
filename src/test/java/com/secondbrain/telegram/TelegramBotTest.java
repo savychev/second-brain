@@ -49,8 +49,8 @@ class TelegramBotTest {
         }
 
         @Override
-        public List<TelegramMessage> getUpdates(long offset) {
-            return List.of();
+        public Updates getUpdates(long offset) {
+            return new Updates(offset, List.of());
         }
     }
 

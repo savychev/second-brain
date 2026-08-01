@@ -8,6 +8,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -60,9 +61,9 @@ public class TelegramClient {
      *
      * @param offset идентификатор первого нужного обновления: подтверждает
      *               Telegram, что предыдущие обработаны, и они больше не придут
-     * @return полученные сообщения, возможно пустой список
+     * @return сообщения и указатель для следующего запроса
      */
-    public List<TelegramMessage> getUpdates(long offset) {
+    public Updates getUpdates(long offset) {
         ObjectNode request = JSON.createObjectNode();
         request.put("offset", offset);
         request.put("timeout", config.pollTimeout().toSeconds());
@@ -73,9 +74,25 @@ public class TelegramClient {
         JsonNode result = call("getUpdates", request,
                 config.pollTimeout().plus(TIMEOUT_MARGIN));
 
+        return parseUpdates(result, offset);
+    }
+
+    /**
+     * Разбирает ответ Telegram.
+     *
+     * <p>Вынесено отдельно, чтобы проверять разбор тестом, без сети.
+     */
+    static Updates parseUpdates(JsonNode result, long offset) {
         List<TelegramMessage> messages = new ArrayList<>();
+        long nextOffset = offset;
         for (JsonNode update : result) {
             long updateId = update.path("update_id").asLong();
+            // Указатель двигаем по КАЖДОМУ обновлению, даже если сообщения из
+            // него не получилось. Иначе отброшенное обновление — например
+            // «бота добавили в группу» — не подтвердится никогда, Telegram
+            // будет присылать его снова, и опрос закрутится вхолостую.
+            nextOffset = Math.max(nextOffset, updateId + 1);
+
             JsonNode message = update.path("message");
             String text = message.path("text").asString("");
             long chatId = message.path("chat").path("id").asLong();
@@ -84,7 +101,7 @@ public class TelegramClient {
                 messages.add(new TelegramMessage(updateId, chatId, text, from));
             }
         }
-        return messages;
+        return new Updates(nextOffset, messages);
     }
 
     /** Отправляет текст в чат. */
@@ -95,8 +112,29 @@ public class TelegramClient {
         call("sendMessage", request, Duration.ofSeconds(15));
     }
 
+    /**
+     * Адрес метода API.
+     *
+     * <p>{@code URI.create} здесь применять нельзя: на недопустимом символе он
+     * бросает исключение, в тексте которого лежит <b>весь адрес вместе с
+     * токеном</b>, а цикл опроса напечатал бы это в журнал со всем стеком.
+     * Поэтому разбираем адрес сами и наружу не отдаём ни исключение, ни его
+     * текст — только объяснение, что делать.
+     *
+     * <p>До сюда доходить не должно: {@link TelegramConfig} проверяет вид
+     * токена при загрузке. Это второй рубеж на случай, если проверку обойдут.
+     */
+    private URI endpoint(String method) {
+        try {
+            return new URI(API_BASE + config.token() + "/" + method);
+        } catch (URISyntaxException e) {
+            throw new TelegramException("токен Telegram содержит недопустимый символ — "
+                    + "проверь " + TelegramConfig.CONFIG_FILE);
+        }
+    }
+
     private JsonNode call(String method, ObjectNode body, Duration timeout) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(API_BASE + config.token() + "/" + method))
+        HttpRequest request = HttpRequest.newBuilder(endpoint(method))
                 .header("Content-Type", "application/json; charset=utf-8")
                 .timeout(timeout)
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
@@ -135,6 +173,16 @@ public class TelegramClient {
             return "";
         }
         return body.length() <= 300 ? body : body.substring(0, 300) + "…";
+    }
+
+    /**
+     * Итог одного опроса.
+     *
+     * @param nextOffset что просить в следующий раз — учитывает и обновления,
+     *                   из которых сообщения не вышло
+     * @param messages   разобранные сообщения, возможно пустой список
+     */
+    public record Updates(long nextOffset, List<TelegramMessage> messages) {
     }
 
     /**

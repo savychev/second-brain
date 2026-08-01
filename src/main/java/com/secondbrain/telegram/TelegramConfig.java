@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Настройки Telegram-бота: токен и список разрешённых чатов.
@@ -24,6 +25,9 @@ public final class TelegramConfig {
     public static final String CONFIG_PATH_PROPERTY = "secondbrain.telegram.config";
 
     private static final String ENV_TOKEN = "TELEGRAM_BOT_TOKEN";
+
+    /** Вид токена Telegram: цифры, двоеточие, дальше буквы, цифры, дефис, подчёркивание. */
+    private static final Pattern TOKEN_FORMAT = Pattern.compile("\\d+:[A-Za-z0-9_-]+");
 
     /**
      * Сколько Telegram держит запрос открытым, ожидая новых сообщений.
@@ -59,12 +63,36 @@ public final class TelegramConfig {
         Properties props = readProperties(configFile);
 
         String token = value(ENV_TOKEN, props, "telegram.bot.token");
+        requireValidToken(token);
         Set<Long> allowed = parseChats(value("TELEGRAM_ALLOWED_CHATS", props,
                 "telegram.allowed.chats"));
         Duration poll = parseSeconds(value("TELEGRAM_POLL_SECONDS", props,
                 "telegram.poll.seconds"));
 
         return new TelegramConfig(token, allowed, poll);
+    }
+
+    /**
+     * Проверяет вид токена, ни разу его не показывая.
+     *
+     * <p>Проверка не косметическая. Токен подставляется прямо в адрес запроса,
+     * и посторонний символ в нём — кавычка, скопированный пробел — уронил бы
+     * построение адреса с сообщением, содержащим <b>весь адрес вместе с
+     * токеном</b>. Это сообщение печатается в консоль каждые пять секунд, и
+     * именно его человек копирует в чат или на форум с вопросом «почему бот не
+     * работает?». Поэтому ошибку ловим здесь, до первого запроса, и объясняем,
+     * что не так, не повторяя само значение.
+     */
+    private static void requireValidToken(String token) {
+        if (token == null || TOKEN_FORMAT.matcher(token).matches()) {
+            return;
+        }
+        throw new IllegalArgumentException(
+                "Токен в " + CONFIG_FILE + " не похож на токен Telegram. "
+                        + "Ожидается вид 123456789:AAE-xxxxx. Частая причина — "
+                        + "кавычки вокруг значения или пробел внутри него. "
+                        + "Сам токен здесь не показан намеренно: это сообщение "
+                        + "видно в консоли, а токен — ключ от бота.");
     }
 
     /** Разбирает список идентификаторов чатов через запятую. */
@@ -106,10 +134,26 @@ public final class TelegramConfig {
     private static String value(String envName, Properties props, String propertyName) {
         String fromEnv = System.getenv(envName);
         if (fromEnv != null && !fromEnv.isBlank()) {
-            return fromEnv.trim();
+            return unquote(fromEnv.trim());
         }
         String fromFile = props.getProperty(propertyName);
-        return (fromFile != null && !fromFile.isBlank()) ? fromFile.trim() : null;
+        return (fromFile != null && !fromFile.isBlank()) ? unquote(fromFile.trim()) : null;
+    }
+
+    /**
+     * Снимает кавычки вокруг значения.
+     *
+     * <p>{@code set TELEGRAM_BOT_TOKEN="123:ABC"} в консоли Windows сохраняет
+     * кавычки внутри самого значения, и человек об этом не догадывается.
+     */
+    private static String unquote(String value) {
+        char first = value.charAt(0);
+        if (value.length() >= 2
+                && (first == '"' || first == '\'')
+                && value.charAt(value.length() - 1) == first) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
     }
 
     private static Duration parseSeconds(String value) {
