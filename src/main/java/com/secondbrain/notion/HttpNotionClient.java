@@ -1,12 +1,14 @@
 package com.secondbrain.notion;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.secondbrain.classify.Urls;
 import com.secondbrain.model.Note;
 import com.secondbrain.model.NoteType;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.net.URI;
@@ -43,7 +45,7 @@ public class HttpNotionClient implements NotionClient {
 
     private final NotionConfig config;
     private final HttpClient http;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = JsonMapper.builder().build();
 
     public HttpNotionClient(NotionConfig config) {
         this(config, HttpClient.newBuilder()
@@ -98,7 +100,9 @@ public class HttpNotionClient implements NotionClient {
                 throw new NotionException("Notion не вернул id созданной страницы");
             }
             return id.asText();
-        } catch (IOException e) {
+        } catch (JacksonException e) {
+            // В Jackson 3 ошибки разбора — непроверяемые (наследники RuntimeException),
+            // поэтому здесь ловим именно их, а не IOException.
             throw new NotionException("Не удалось разобрать ответ Notion: " + e.getMessage(), e);
         }
     }

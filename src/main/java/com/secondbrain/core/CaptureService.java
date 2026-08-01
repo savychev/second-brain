@@ -52,7 +52,12 @@ public class CaptureService {
                 ? NotionSyncService.SyncResult.skipped("Notion не подключён")
                 : notionSync.trySync(note);
 
-        return new Captured(note, result, sync);
+        // Заметка неизменяемая, поэтому объект, созданный до отправки, о ней не знает.
+        // Без этой строки ответ сообщал бы «не отправлено» о заметке, которая
+        // на самом деле уже в Notion и записана такой в хранилище.
+        Note saved = sync.isSent() ? note.withNotionPageId(sync.detail()) : note;
+
+        return new Captured(saved, result, sync);
     }
 
     /** Заметка + как её классифицировали + что стало с отправкой в Notion. */

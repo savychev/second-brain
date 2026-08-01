@@ -123,6 +123,56 @@ class NotionSyncServiceTest {
     }
 
     @Test
+    @DisplayName("Страница создана, но записать локально не вышло → ORPHANED, а не тихая потеря")
+    void failureToRecordPageIdIsReportedNotSwallowed(@TempDir Path dir) {
+        // Хранилище, которое принимает заметки, но падает при отметке об отправке —
+        // так ведёт себя занятая другим процессом база SQLite.
+        NoteRepository flaky = new JsonNoteRepository(dir.resolve("notes.json")) {
+            @Override
+            public void markSynced(String noteId, String notionPageId) {
+                throw new IllegalStateException("база занята");
+            }
+        };
+        FakeNotionClient client = new FakeNotionClient();
+        NotionSyncService sync = new NotionSyncService(client, flaky, true);
+
+        Note n = note("мысль", NoteType.NOTE);
+        flaky.save(n);
+
+        NotionSyncService.SyncResult result = sync.trySync(n);
+
+        assertEquals(NotionSyncService.SyncResult.Status.ORPHANED, result.status(),
+                "исключение не должно улетать наружу — иначе следующий запуск создаст дубликат");
+        assertFalse(result.isSent(), "это не успех: локально ничего не записано");
+        assertTrue(result.detail().contains("page-" + n.id()),
+                "id созданной страницы обязан быть в сообщении, чтобы его можно было проставить руками");
+        assertEquals(1, client.sentNoteIds.size(), "страница в Notion всё-таки создана");
+    }
+
+    @Test
+    @DisplayName("ORPHANED останавливает досылку — иначе посыплются дубликаты")
+    void orphanedStopsTheQueue(@TempDir Path dir) {
+        NoteRepository flaky = new JsonNoteRepository(dir.resolve("notes.json")) {
+            @Override
+            public void markSynced(String noteId, String notionPageId) {
+                throw new IllegalStateException("база занята");
+            }
+        };
+        FakeNotionClient client = new FakeNotionClient();
+        NotionSyncService sync = new NotionSyncService(client, flaky, true);
+
+        for (int i = 1; i <= 3; i++) {
+            flaky.save(note("мысль " + i, NoteType.NOTE));
+        }
+
+        int sent = sync.flushQueue();
+
+        assertEquals(0, sent, "ни одна отправка не доведена до конца");
+        assertEquals(1, client.sentNoteIds.size(),
+                "после первой неудачи цикл обязан остановиться, а не создать три осиротевшие страницы");
+    }
+
+    @Test
     @DisplayName("Досылка останавливается на первой неудаче — не долбит недоступный Notion")
     void stopsOnFirstFailure(@TempDir Path dir) {
         NoteRepository repo = new JsonNoteRepository(dir.resolve("notes.json"));

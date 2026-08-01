@@ -3,7 +3,9 @@ package com.secondbrain.storage;
 import com.secondbrain.model.Note;
 import com.secondbrain.model.NoteType;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Локальное хранилище заметок.
@@ -39,4 +41,42 @@ public interface NoteRepository {
      * @param notionPageId id созданной страницы в Notion
      */
     void markSynced(String noteId, String notionPageId);
+
+    /**
+     * Страница заметок от новых к старым — под постраничный вывод в REST API.
+     *
+     * <p>Реализация по умолчанию честная, но неэффективная: читает всё и отрезает
+     * нужный кусок. Хранилищам, умеющим это на своей стороне (SQLite —
+     * {@code LIMIT/OFFSET}), следует метод переопределить.
+     *
+     * @param limit  сколько заметок вернуть
+     * @param offset сколько пропустить с начала
+     */
+    default List<Note> findPage(int limit, int offset) {
+        return findAll().stream().skip(Math.max(0, offset)).limit(Math.max(0, limit)).toList();
+    }
+
+    /**
+     * Количество заметок по каждому типу — под экран статистики.
+     *
+     * <p>Реализация по умолчанию делает по одному проходу на тип; SQLite умеет
+     * посчитать всё одним запросом и метод переопределяет.
+     */
+    default Map<NoteType, Long> countByType() {
+        Map<NoteType, Long> counts = new EnumMap<>(NoteType.class);
+        for (NoteType type : NoteType.values()) {
+            counts.put(type, (long) findByType(type).size());
+        }
+        return counts;
+    }
+
+    /**
+     * Где именно лежат заметки — для показа пользователю.
+     *
+     * <p>Нужно на случай запуска из другого рабочего каталога: тогда хранилище
+     * окажется пустым, и без указания пути это выглядит как «все заметки пропали».
+     */
+    default String describe() {
+        return getClass().getSimpleName();
+    }
 }
