@@ -6,13 +6,11 @@ import com.secondbrain.core.CaptureService;
 import com.secondbrain.notion.HttpNotionClient;
 import com.secondbrain.notion.NotionConfig;
 import com.secondbrain.notion.NotionSyncService;
-import com.secondbrain.storage.JsonNoteRepository;
 import com.secondbrain.storage.NoteRepository;
+import com.secondbrain.storage.Storages;
 
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * Точка входа Second Brain.
@@ -28,8 +26,7 @@ import java.nio.file.Paths;
  *   <li>с текстом в аргументах — захватить его и выйти.</li>
  * </ul>
  *
- * <p>Путь к хранилищу берётся из переменной окружения {@code SECOND_BRAIN_DATA}
- * (по умолчанию {@code ./data/notes.json}).
+ * <p>Хранилище выбирается переменными окружения — см. {@link Storages}.
  */
 public final class App {
 
@@ -40,7 +37,17 @@ public final class App {
         // Гарантируем корректный вывод кириллицы независимо от кодовой страницы консоли.
         PrintStream out = new PrintStream(System.out, true, StandardCharsets.UTF_8);
 
-        NoteRepository repository = new JsonNoteRepository(dataFile());
+        NoteRepository repository;
+        try {
+            repository = Storages.fromEnvironment();
+        } catch (RuntimeException e) {
+            // Ошибка настройки — не повод показывать пользователю стектрейс.
+            // Печатаем через UTF-8 поток, иначе кириллица превратится в «?????».
+            out.println("Не удалось открыть хранилище заметок.");
+            out.println("  " + e.getMessage());
+            System.exit(1);
+            return;
+        }
 
         NotionConfig notionConfig = NotionConfig.load();
         NotionSyncService notionSync = new NotionSyncService(
@@ -69,11 +76,4 @@ public final class App {
         }
     }
 
-    private static Path dataFile() {
-        String custom = System.getenv("SECOND_BRAIN_DATA");
-        if (custom != null && !custom.isBlank()) {
-            return Paths.get(custom);
-        }
-        return Paths.get("data", "notes.json");
-    }
 }

@@ -82,6 +82,11 @@ public class JsonNoteRepository implements NoteRepository {
     }
 
     @Override
+    public String describe() {
+        return "JSON-файл " + file.toAbsolutePath().normalize();
+    }
+
+    @Override
     public List<Note> findUnsynced() {
         synchronized (lock) {
             List<Note> all = readAll();

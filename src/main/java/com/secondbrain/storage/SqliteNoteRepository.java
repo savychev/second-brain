@@ -41,9 +41,20 @@ public class SqliteNoteRepository implements NoteRepository {
             "id, text, type, created_at, tags, source, notion_page_id";
 
     private final JdbcClient jdbc;
+    private final String location;
 
     public SqliteNoteRepository(DataSource dataSource) {
+        this(dataSource, "SQLite");
+    }
+
+    public SqliteNoteRepository(DataSource dataSource, String location) {
         this.jdbc = JdbcClient.create(dataSource);
+        this.location = location;
+    }
+
+    @Override
+    public String describe() {
+        return "база SQLite " + location;
     }
 
     @Override

@@ -163,6 +163,9 @@ public class ConsoleApp {
     }
 
     private void printStats() {
+        // Путь показываем всегда: если программу запустили из другого каталога,
+        // хранилище окажется пустым, и без пути это выглядит как потеря заметок.
+        out.printf("  Хранилище: %s%n", repository.describe());
         out.printf("  Всего заметок: %d%n", repository.count());
         for (NoteType type : NoteType.values()) {
             out.printf("    %-4s : %d%n", type, repository.findByType(type).size());
