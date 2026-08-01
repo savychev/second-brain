@@ -41,6 +41,21 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!--
+          Хранилище SQLite. Берём именно spring-jdbc, а не spring-boot-starter-jdbc:
+          нужен только JdbcClient, а стартер притащил бы ещё пул соединений HikariCP
+          и автонастройку DataSource. Для встроенной однопользовательской базы пул
+          не нужен, а консольный режим должен стартовать быстро.
+        -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+        </dependency>
+
         <!-- Тесты: JUnit, AssertJ, Mockito одним набором -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
