@@ -8,16 +8,27 @@
 # Файл не коммитится (см. .gitignore).
 #
 # Любую настройку можно задать переменной окружения — она имеет приоритет:
-#   SECOND_BRAIN_CLASSIFIER, GROQ_API_KEY, ANTHROPIC_API_KEY,
-#   GROQ_MODEL, ANTHROPIC_MODEL, SECOND_BRAIN_CLASSIFIER_TIMEOUT
+#   SECOND_BRAIN_CLASSIFIER, GEMINI_API_KEY, GROQ_API_KEY, ANTHROPIC_API_KEY,
+#   GEMINI_MODEL, GROQ_MODEL, ANTHROPIC_MODEL, SECOND_BRAIN_CLASSIFIER_TIMEOUT
 
 
-# ── Кто классифицирует: rules | groq | anthropic ──────────────────────────
+# ── Кто классифицирует: rules | gemini | groq | anthropic ─────────────────
 #
-# Не задано — выбирается по наличию ключа: сначала groq (бесплатный),
-# затем anthropic. Нет ни одного — правила.
+# Не задано — выбирается по наличию ключа: сначала бесплатные (gemini, затем
+# groq), и только потом платный anthropic. Нет ни одного — правила.
 #
-# classifier.provider=groq
+# classifier.provider=gemini
+
+
+# ── Google Gemini: бесплатный уровень ─────────────────────────────────────
+#
+# Ключ создаётся на https://aistudio.google.com/apikey — вход обычным
+# Google-аккаунтом, карта не нужна. Нажми «Create API key» и скопируй.
+
+gemini.api.key=
+
+# Модель. По умолчанию gemini-3.6-flash — быстрая, входит в бесплатный уровень.
+# gemini.model=gemini-3.6-flash
 
 
 # ── Groq: бесплатный уровень ──────────────────────────────────────────────

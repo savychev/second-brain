@@ -38,6 +38,18 @@ class ClassifiersTest {
     }
 
     @Test
+    @DisplayName("Ключ Gemini → бесплатный провайдер с подстраховкой правилами")
+    void geminiKeyEnablesGemini(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, "gemini.api.key=test-not-real\n"));
+
+        assertTrue(config.isEnabled());
+        assertEquals(ProviderConfig.GEMINI, config.provider());
+        assertEquals("gemini-3.6-flash", config.model(), "модель по умолчанию для Gemini");
+        assertInstanceOf(FallbackClassifier.class, Classifiers.create(config),
+                "модель обязана идти в паре с правилами");
+    }
+
+    @Test
     @DisplayName("Ключ Groq → бесплатный провайдер с подстраховкой правилами")
     void groqKeyEnablesGroq(@TempDir Path dir) throws IOException {
         ProviderConfig config = ProviderConfig.load(config(dir, "groq.api.key=test-not-real\n"));
@@ -60,15 +72,27 @@ class ClassifiersTest {
     }
 
     @Test
-    @DisplayName("Есть оба ключа → выбирается бесплатный")
-    void prefersFreeProviderWhenBothAvailable(@TempDir Path dir) throws IOException {
+    @DisplayName("Есть все ключи → выбирается бесплатный, платный не трогаем")
+    void prefersFreeProviderWhenAllAvailable(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, """
+                gemini.api.key=test-not-real
+                groq.api.key=test-not-real
+                anthropic.api.key=test-not-real
+                """));
+
+        assertEquals(ProviderConfig.GEMINI, config.provider(),
+                "по умолчанию не тратим деньги без явной просьбы");
+    }
+
+    @Test
+    @DisplayName("Только Groq и Anthropic → выбирается бесплатный Groq")
+    void prefersGroqOverPaid(@TempDir Path dir) throws IOException {
         ProviderConfig config = ProviderConfig.load(config(dir, """
                 groq.api.key=test-not-real
                 anthropic.api.key=test-not-real
                 """));
 
-        assertEquals(ProviderConfig.GROQ, config.provider(),
-                "по умолчанию не тратим деньги без явной просьбы");
+        assertEquals(ProviderConfig.GROQ, config.provider());
     }
 
     @Test

@@ -5,7 +5,7 @@ package com.secondbrain.classify;
  *
  * <p>Здесь окупается решение, принятое на этапе 1: за интерфейсом
  * {@link Classifier} реализация меняется, не задевая остального кода.
- * Правила, Groq и Claude подставляются одной настройкой — как хранилище
+ * Правила, Gemini, Groq и Claude подставляются одной настройкой — как хранилище
  * {@code json|sqlite} на этапе 3.
  *
  * <p>Любая модель <b>всегда</b> оборачивается в {@link FallbackClassifier}.
@@ -33,6 +33,7 @@ public final class Classifiers {
 
     private static Classifier model(ProviderConfig config) {
         return switch (config.provider()) {
+            case ProviderConfig.GEMINI -> new GeminiClassifier(config);
             case ProviderConfig.GROQ -> new GroqClassifier(config);
             case ProviderConfig.ANTHROPIC -> new AnthropicClassifier(config);
             // Сюда попасть нельзя: ProviderConfig отвергает неизвестные значения

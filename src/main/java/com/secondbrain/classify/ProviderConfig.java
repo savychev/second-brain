@@ -12,18 +12,20 @@ import java.util.Properties;
 /**
  * Настройки умной классификации: какой моделью классифицировать и по какому ключу.
  *
- * <p>Поддерживаются два провайдера — они выбираются одной настройкой, как
- * хранилище {@code json|sqlite}. Смысл тот же: сравнивать качество, не переписывая
- * код, и иметь путь отхода, если один из них станет недоступен или платным.
+ * <p>Провайдер выбирается одной настройкой, как хранилище {@code json|sqlite}
+ * на этапе 3. Смысл тот же: сравнивать качество, не переписывая код, и иметь
+ * путь отхода, если один из них станет недоступен или платным.
  *
  * <pre>
+ *   gemini    — бесплатный уровень по обычному Google-аккаунту
  *   groq      — бесплатный уровень, открытые модели, строгая схема ответа
  *   anthropic — Claude, платно, лучшее качество
  *   rules     — без модели, только правила
  * </pre>
  *
  * <p>Если провайдер не задан явно, он определяется по наличию ключей: сначала
- * Groq (бесплатный), затем Anthropic. Нет ни одного — работают правила,
+ * бесплатные (Gemini, затем Groq), и только потом платный Anthropic — тратить
+ * деньги без явной просьбы нельзя. Нет ни одного ключа — работают правила,
  * и это <b>не ошибка</b>: приложение полностью работоспособно без всякой модели.
  *
  * <p>Источники настроек, по возрастанию приоритета: файл {@code classifier.properties}
@@ -35,8 +37,15 @@ public final class ProviderConfig {
     public static final String CONFIG_PATH_PROPERTY = "secondbrain.classifier.config";
 
     public static final String RULES = "rules";
+    public static final String GEMINI = "gemini";
     public static final String GROQ = "groq";
     public static final String ANTHROPIC = "anthropic";
+
+    /**
+     * Модель Gemini по умолчанию. Flash — быстрая и входит в бесплатный уровень;
+     * для выбора одной из четырёх категорий её с запасом достаточно.
+     */
+    private static final String DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 
     /**
      * Модель Groq по умолчанию. Из открытых моделей на бесплатном уровне
@@ -83,16 +92,20 @@ public final class ProviderConfig {
     public static ProviderConfig load(Path configFile) {
         Properties props = readProperties(configFile);
 
+        String geminiKey = value("GEMINI_API_KEY", props, "gemini.api.key");
         String groqKey = value("GROQ_API_KEY", props, "groq.api.key");
         String anthropicKey = value("ANTHROPIC_API_KEY", props, "anthropic.api.key");
 
         String requested = value("SECOND_BRAIN_CLASSIFIER", props, "classifier.provider");
-        String provider = choose(requested, groqKey, anthropicKey);
+        String provider = choose(requested, geminiKey, groqKey, anthropicKey);
 
         Duration timeout = parseSeconds(value("SECOND_BRAIN_CLASSIFIER_TIMEOUT", props,
                 "classifier.timeout.seconds"));
 
         return switch (provider) {
+            case GEMINI -> new ProviderConfig(GEMINI, geminiKey,
+                    orDefault(value("GEMINI_MODEL", props, "gemini.model"), DEFAULT_GEMINI_MODEL),
+                    timeout);
             case GROQ -> new ProviderConfig(GROQ, groqKey,
                     orDefault(value("GROQ_MODEL", props, "groq.model"), DEFAULT_GROQ_MODEL),
                     timeout);
@@ -112,8 +125,14 @@ public final class ProviderConfig {
      *                                  на другой было бы хуже: пользователь
      *                                  решил бы, что работает не то, что работает
      */
-    private static String choose(String requested, String groqKey, String anthropicKey) {
+    private static String choose(String requested, String geminiKey,
+                                 String groqKey, String anthropicKey) {
         if (requested == null) {
+            // Порядок намеренный: сначала бесплатные, платный — только если
+            // других ключей нет. Тратить деньги без явной просьбы нельзя.
+            if (geminiKey != null) {
+                return GEMINI;
+            }
             if (groqKey != null) {
                 return GROQ;
             }
@@ -123,11 +142,12 @@ public final class ProviderConfig {
         String normalized = requested.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case RULES -> RULES;
+            case GEMINI -> requireKey(GEMINI, geminiKey, "GEMINI_API_KEY");
             case GROQ -> requireKey(GROQ, groqKey, "GROQ_API_KEY");
             case ANTHROPIC -> requireKey(ANTHROPIC, anthropicKey, "ANTHROPIC_API_KEY");
             default -> throw new IllegalArgumentException(
                     "Неизвестный классификатор: «" + requested + "». Допустимо: "
-                            + RULES + ", " + GROQ + ", " + ANTHROPIC + ".");
+                            + RULES + ", " + GEMINI + ", " + GROQ + ", " + ANTHROPIC + ".");
         };
     }
 

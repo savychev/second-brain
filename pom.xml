@@ -122,10 +122,12 @@
                     <environmentVariables>
                         <NOTION_TOKEN></NOTION_TOKEN>
                         <NOTION_CONFIG_FILE></NOTION_CONFIG_FILE>
-                        <!-- Тот же принцип для Anthropic: тесты не должны обращаться
-                             к платному API и тратить деньги владельца. -->
+                        <!-- Тот же принцип для моделей: тесты не должны обращаться
+                             ни к одному провайдеру — ни к платному, ни к бесплатному
+                             (лимиты бесплатных тоже исчерпаемы). -->
                         <ANTHROPIC_API_KEY></ANTHROPIC_API_KEY>
                         <GROQ_API_KEY></GROQ_API_KEY>
+                        <GEMINI_API_KEY></GEMINI_API_KEY>
                         <SECOND_BRAIN_CLASSIFIER></SECOND_BRAIN_CLASSIFIER>
                         <SECOND_BRAIN_CLASSIFIER_CONFIG></SECOND_BRAIN_CLASSIFIER_CONFIG>
                         <!--
