@@ -1,7 +1,8 @@
 package com.secondbrain.config;
 
+import com.secondbrain.classify.AnthropicConfig;
 import com.secondbrain.classify.Classifier;
-import com.secondbrain.classify.RuleBasedClassifier;
+import com.secondbrain.classify.Classifiers;
 import com.secondbrain.core.CaptureService;
 import com.secondbrain.notion.HttpNotionClient;
 import com.secondbrain.notion.NotionClient;
@@ -90,16 +91,24 @@ public class AppConfig {
         return new NotionFlushJob(notionSyncService);
     }
 
+    /** Настройки умной классификации: ключ Anthropic, модель, таймаут. */
+    @Bean
+    public AnthropicConfig anthropicConfig() {
+        return AnthropicConfig.load();
+    }
+
     /**
      * Классификатор мыслей.
      *
-     * <p>Здесь тип возвращаемого значения — интерфейс {@link Classifier}, и это
-     * не формальность: на этапе 4 достаточно будет вернуть отсюда реализацию
-     * на Anthropic API, и всё остальное приложение не заметит подмены.
+     * <p>Обещание, данное на этапе 1, сработало буквально: тип возвращаемого
+     * значения — интерфейс {@link Classifier}, и подмена правил на модель
+     * не потребовала изменений ни в одном классе, который им пользуется.
+     *
+     * <p>Без ключа Anthropic возвращаются правила — приложение работает как прежде.
      */
     @Bean
-    public Classifier classifier() {
-        return new RuleBasedClassifier();
+    public Classifier classifier(AnthropicConfig anthropicConfig) {
+        return Classifiers.create(anthropicConfig);
     }
 
     /** Захват мысли: классифицировать → теги → сохранить → отправить. */

@@ -7,6 +7,7 @@ import com.secondbrain.model.Note;
 import com.secondbrain.notion.NotionSyncService;
 import com.secondbrain.storage.NoteRepository;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -41,7 +42,7 @@ public class CaptureService {
      */
     public Captured capture(String text, String source) {
         ClassificationResult result = classifier.classify(text);
-        List<String> tags = Tags.extract(text);
+        List<String> tags = mergeTags(Tags.extract(text), result.tags());
         Note note = Note.create(text, result.type(), tags, source);
 
         // Шаг 1 — локально. С этого момента мысль не потеряется.
@@ -58,6 +59,23 @@ public class CaptureService {
         Note saved = sync.isSent() ? note.withNotionPageId(sync.detail()) : note;
 
         return new Captured(saved, result, sync);
+    }
+
+    /**
+     * Объединяет теги, поставленные человеком, с предложенными классификатором.
+     *
+     * <p>Явные {@code #хештеги} идут первыми и никогда не теряются: пользователь
+     * написал их сам, значит они точно нужны. Предложения модели дописываются
+     * следом, без повторов.
+     */
+    private static List<String> mergeTags(List<String> fromText, List<String> fromClassifier) {
+        List<String> merged = new ArrayList<>(fromText);
+        for (String tag : fromClassifier) {
+            if (!merged.contains(tag)) {
+                merged.add(tag);
+            }
+        }
+        return merged;
     }
 
     /** Заметка + как её классифицировали + что стало с отправкой в Notion. */

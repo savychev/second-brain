@@ -71,6 +71,17 @@
         </dependency>
 
         <!--
+          Официальный SDK Anthropic — умная классификация мыслей (этап 4).
+          Приносит с собой Jackson 2; он уживается с нашим Jackson 3,
+          потому что это разные пакеты (com.fasterxml против tools.jackson).
+        -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>2.52.0</version>
+        </dependency>
+
+        <!--
           Swagger UI: интерактивная документация API по адресу /swagger-ui.html.
           Описание строится из аннотаций контроллеров, поэтому не может отстать
           от кода. Версия указана явно — springdoc не входит в BOM Spring Boot.
@@ -106,10 +117,15 @@
                     -->
                     <systemPropertyVariables>
                         <secondbrain.notion.config>${project.build.directory}/no-notion-config-in-tests.properties</secondbrain.notion.config>
+                        <secondbrain.anthropic.config>${project.build.directory}/no-anthropic-config-in-tests.properties</secondbrain.anthropic.config>
                     </systemPropertyVariables>
                     <environmentVariables>
                         <NOTION_TOKEN></NOTION_TOKEN>
                         <NOTION_CONFIG_FILE></NOTION_CONFIG_FILE>
+                        <!-- Тот же принцип для Anthropic: тесты не должны обращаться
+                             к платному API и тратить деньги владельца. -->
+                        <ANTHROPIC_API_KEY></ANTHROPIC_API_KEY>
+                        <ANTHROPIC_CONFIG_FILE></ANTHROPIC_CONFIG_FILE>
                         <!--
                           И тот же принцип для данных: тест, поднимающий приложение
                           целиком, не должен открывать боевую базу с личными заметками.

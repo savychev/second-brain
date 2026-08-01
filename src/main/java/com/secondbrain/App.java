@@ -1,6 +1,6 @@
 package com.secondbrain;
 
-import com.secondbrain.classify.RuleBasedClassifier;
+import com.secondbrain.classify.Classifiers;
 import com.secondbrain.cli.ConsoleApp;
 import com.secondbrain.core.CaptureService;
 import com.secondbrain.notion.HttpNotionClient;
@@ -70,7 +70,7 @@ public final class App {
                 Storages.syncLockFromEnvironment());
 
         CaptureService captureService =
-                new CaptureService(new RuleBasedClassifier(), repository, notionSync);
+                new CaptureService(Classifiers.fromEnvironment(), repository, notionSync);
         ConsoleApp app = new ConsoleApp(captureService, repository, notionSync, out);
 
         if (args.length == 1 && args[0].equals("--import-json")) {
