@@ -2,13 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Windows в матрице не для галочки: часть проблем этого проекта бывает
+    # только там — кодировка консоли и блокировки файлов SQLite (-wal, -shm).
+    # Без него такие поломки нашёл бы только владелец и только вручную.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,4 +28,7 @@ jobs:
           cache: maven
 
       - name: Build and test
+        # shell: bash — чтобы одна и та же команда работала на обеих системах:
+        # на Windows по умолчанию PowerShell, где ./mvnw не запускается.
+        shell: bash
         run: ./mvnw --batch-mode verify

@@ -70,6 +70,17 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!--
+          Swagger UI: интерактивная документация API по адресу /swagger-ui.html.
+          Описание строится из аннотаций контроллеров, поэтому не может отстать
+          от кода. Версия указана явно — springdoc не входит в BOM Spring Boot.
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
         <!-- Тесты: JUnit, AssertJ, Mockito одним набором -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
