@@ -171,13 +171,13 @@ class JsonToSqliteImporterTest {
     @Test
     @DisplayName("Кириллица и теги переживают перенос")
     void cyrillicAndTagsSurvive() {
-        json.save(note("n1", "заменить лампочку #дом #быт", NoteType.TASK, T1,
+        json.save(note("n1", "полить цветы ёлки ёжик #дом #быт", NoteType.TASK, T1,
                 List.of("дом", "быт"), null));
 
         JsonToSqliteImporter.importAll(jsonFile, sqlite);
 
         Note imported = sqlite.findAll().get(0);
-        assertEquals("заменить лампочку #дом #быт", imported.text());
+        assertEquals("полить цветы ёлки ёжик #дом #быт", imported.text());
         assertEquals(List.of("дом", "быт"), imported.tags());
     }
 }
