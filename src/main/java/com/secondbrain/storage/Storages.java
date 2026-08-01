@@ -1,5 +1,9 @@
 package com.secondbrain.storage;
 
+import com.secondbrain.notion.JvmSyncLock;
+import com.secondbrain.notion.SqliteSyncLock;
+import com.secondbrain.notion.SyncLock;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
@@ -93,6 +97,34 @@ public final class Storages {
         var dataSource = SqliteFiles.dataSource(absolute);
         SqliteSchema.apply(dataSource);
         return new SqliteNoteRepository(dataSource, absolute.toString());
+    }
+
+    /**
+     * Замок на досылку в Notion, соответствующий выбранному хранилищу.
+     *
+     * <p>Для SQLite — межпроцессный: сервер и консоль работают с одним файлом базы,
+     * и досылать очередь одновременно им нельзя, иначе в Notion появятся дубликаты
+     * страниц. Для JSON — в пределах процесса: там одновременная работа двух
+     * процессов и так небезопасна, а сервер по умолчанию работает на SQLite.
+     */
+    public static SyncLock syncLockFromEnvironment() {
+        return createSyncLock(System.getenv(ENV_KIND), dbFile());
+    }
+
+    /** @see #syncLockFromEnvironment() */
+    public static SyncLock createSyncLock(String kind, Path dbFile) {
+        String normalized = (kind == null || kind.isBlank())
+                ? DEFAULT_KIND
+                : kind.trim().toLowerCase(Locale.ROOT);
+
+        if (!SQLITE.equals(normalized)) {
+            return new JvmSyncLock();
+        }
+        Path absolute = dbFile.toAbsolutePath().normalize();
+        var dataSource = SqliteFiles.dataSource(absolute);
+        // Схема идемпотентна: вызов безопасен, даже если хранилище её уже создало.
+        SqliteSchema.apply(dataSource);
+        return new SqliteSyncLock(dataSource);
     }
 
     private static Path pathFromEnv(String variable, Path fallback) {

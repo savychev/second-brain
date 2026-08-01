@@ -62,8 +62,12 @@ public final class App {
         }
 
         NotionConfig notionConfig = NotionConfig.load();
+        // Замок берём межпроцессный: рядом может работать сервер со своей
+        // фоновой досылкой, и одновременная отправка создала бы в Notion
+        // две страницы одной мысли.
         NotionSyncService notionSync = new NotionSyncService(
-                new HttpNotionClient(notionConfig), repository, notionConfig.isEnabled());
+                new HttpNotionClient(notionConfig), repository, notionConfig.isEnabled(),
+                Storages.syncLockFromEnvironment());
 
         CaptureService captureService =
                 new CaptureService(new RuleBasedClassifier(), repository, notionSync);

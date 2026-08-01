@@ -46,6 +46,12 @@ class SecondBrainApplicationTests {
     @Autowired
     private NotionSyncService notionSyncService;
 
+    @Autowired
+    private com.secondbrain.notion.NotionFlushJob flushJob;
+
+    @Autowired
+    private java.util.List<org.springframework.scheduling.config.ScheduledTaskHolder> scheduledTaskHolders;
+
     @LocalServerPort
     private int port;
 
@@ -75,6 +81,21 @@ class SecondBrainApplicationTests {
         assertNotNull(captureService);
         assertNotNull(notionSyncService);
         assertTrue(port > 0, "сервер должен слушать порт");
+    }
+
+    @Test
+    @DisplayName("Фоновая досылка действительно поставлена в расписание")
+    void flushJobIsScheduled() {
+        assertNotNull(flushJob, "бин фоновой досылки должен быть собран");
+
+        boolean scheduled = scheduledTaskHolders.stream()
+                .flatMap(holder -> holder.getScheduledTasks().stream())
+                .map(task -> String.valueOf(task.getTask()))
+                .anyMatch(description -> description.contains("NotionFlushJob"));
+
+        assertTrue(scheduled,
+                "задача не в расписании — значит очередь не будет разгребаться сама. "
+                        + "Проверь @EnableScheduling и @Scheduled.");
     }
 
     @Test

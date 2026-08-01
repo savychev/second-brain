@@ -6,7 +6,9 @@ import com.secondbrain.core.CaptureService;
 import com.secondbrain.notion.HttpNotionClient;
 import com.secondbrain.notion.NotionClient;
 import com.secondbrain.notion.NotionConfig;
+import com.secondbrain.notion.NotionFlushJob;
 import com.secondbrain.notion.NotionSyncService;
+import com.secondbrain.notion.SyncLock;
 import com.secondbrain.storage.NoteRepository;
 import com.secondbrain.storage.Storages;
 import org.springframework.context.annotation.Bean;
@@ -58,11 +60,34 @@ public class AppConfig {
      *
      * <p>Аргументы метода Spring подставляет сам, найдя подходящие бины выше.
      */
+    /**
+     * Замок на досылку, общий для сервера и консоли.
+     *
+     * <p>Без него фоновая задача сервера и запущенная в тот же момент консоль
+     * могли бы взять из очереди одну заметку и создать в Notion две страницы.
+     */
+    @Bean
+    public SyncLock syncLock() {
+        return Storages.syncLockFromEnvironment();
+    }
+
     @Bean
     public NotionSyncService notionSyncService(NotionClient notionClient,
                                                NoteRepository noteRepository,
-                                               NotionConfig notionConfig) {
-        return new NotionSyncService(notionClient, noteRepository, notionConfig.isEnabled());
+                                               NotionConfig notionConfig,
+                                               SyncLock syncLock) {
+        return new NotionSyncService(notionClient, noteRepository,
+                notionConfig.isEnabled(), syncLock);
+    }
+
+    /**
+     * Периодическая досылка. Бин объявлен здесь, а не аннотацией на самом классе,
+     * чтобы {@link NotionFlushJob} оставался обычным классом без привязки к Spring —
+     * как и остальная логика проекта.
+     */
+    @Bean
+    public NotionFlushJob notionFlushJob(NotionSyncService notionSyncService) {
+        return new NotionFlushJob(notionSyncService);
     }
 
     /**

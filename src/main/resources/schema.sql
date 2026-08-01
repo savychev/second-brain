@@ -26,3 +26,20 @@ CREATE INDEX IF NOT EXISTS idx_notes_type_created_at ON notes(type, created_at D
 -- что запрашивает findUnsynced(). Ушла заметка в Notion — выпала из индекса,
 -- поэтому индекс очереди всегда крошечный независимо от объёма архива.
 CREATE INDEX IF NOT EXISTS idx_notes_pending ON notes(created_at) WHERE notion_page_id IS NULL;
+
+-- Замок на досылку в Notion, общий для всех процессов.
+--
+-- Зачем: сервер досылает очередь по расписанию, а консоль может делать то же самое
+-- в этот момент. Два процесса, взявшие из очереди одну заметку, создадут в Notion
+-- ДВЕ страницы. Блокировка внутри программы (synchronized) тут бессильна —
+-- у разных процессов разная память, общий у них только этот файл базы.
+--
+-- Замок берётся условным UPDATE: кто изменил строку, тот и владеет.
+-- У владения есть срок (expires_at) — иначе аварийно завершившийся процесс
+-- заблокировал бы досылку навсегда.
+CREATE TABLE IF NOT EXISTS sync_lock (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    holder     TEXT,                       -- кто держит; NULL = свободен
+    expires_at TEXT NOT NULL DEFAULT ''    -- до какого момента, ISO-8601
+);
+INSERT OR IGNORE INTO sync_lock (id, holder, expires_at) VALUES (1, NULL, '');

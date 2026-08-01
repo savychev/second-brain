@@ -17,11 +17,27 @@ public class NotionSyncService {
     private final NotionClient client;
     private final NoteRepository repository;
     private final boolean enabled;
+    private final SyncLock lock;
 
+    /**
+     * Замок в пределах процесса — достаточно, когда работает только консоль.
+     */
     public NotionSyncService(NotionClient client, NoteRepository repository, boolean enabled) {
+        this(client, repository, enabled, new JvmSyncLock());
+    }
+
+    /**
+     * @param lock замок, разрешающий досылку только одному исполнителю.
+     *             Когда рядом с консолью работает сервер, здесь обязан быть
+     *             межпроцессный {@link SqliteSyncLock} — иначе оба создадут
+     *             страницы для одной заметки.
+     */
+    public NotionSyncService(NotionClient client, NoteRepository repository,
+                             boolean enabled, SyncLock lock) {
         this.client = client;
         this.repository = repository;
         this.enabled = enabled;
+        this.lock = lock;
     }
 
     /** Настроена ли отправка в Notion. */
@@ -37,6 +53,20 @@ public class NotionSyncService {
         if (!enabled) {
             return SyncResult.skipped("Notion не настроен");
         }
+        if (!lock.tryAcquire()) {
+            // Досылкой уже занят кто-то другой. Ждать нельзя: параллельная отправка
+            // той же заметки создала бы вторую страницу. Заметка остаётся в очереди.
+            return SyncResult.queued("досылка выполняется другим процессом");
+        }
+        try {
+            return sendOne(note);
+        } finally {
+            lock.release();
+        }
+    }
+
+    /** Отправка одной заметки. Замок уже должен быть взят вызывающим. */
+    private SyncResult sendOne(Note note) {
         String pageId;
         try {
             pageId = client.createPage(note);
@@ -69,16 +99,24 @@ public class NotionSyncService {
         if (!enabled) {
             return 0;
         }
-        List<Note> pending = repository.findUnsynced();
-        int sent = 0;
-        for (Note note : pending) {
-            SyncResult result = trySync(note);
-            if (!result.isSent()) {
-                break;
-            }
-            sent++;
+        // Замок берём на всю пачку, а не на каждую заметку: иначе между отправками
+        // мог бы вклиниться другой процесс и взять из очереди то же самое.
+        if (!lock.tryAcquire()) {
+            return 0;
         }
-        return sent;
+        try {
+            List<Note> pending = repository.findUnsynced();
+            int sent = 0;
+            for (Note note : pending) {
+                if (!sendOne(note).isSent()) {
+                    break;
+                }
+                sent++;
+            }
+            return sent;
+        } finally {
+            lock.release();
+        }
     }
 
     /** Сколько заметок ждёт отправки. */
