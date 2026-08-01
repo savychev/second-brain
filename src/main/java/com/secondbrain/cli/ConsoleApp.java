@@ -136,6 +136,10 @@ public class ConsoleApp {
         switch (c.sync().status()) {
             case SENT -> out.println("    → отправлено в Notion");
             case QUEUED -> out.printf("    → Notion недоступен, ждёт в очереди (%s)%n", c.sync().detail());
+            case ORPHANED -> {
+                out.println("    ⚠ ВНИМАНИЕ: " + c.sync().detail());
+                out.println("      Повторная отправка создаст дубликат страницы.");
+            }
             case SKIPPED -> { /* интеграция не настроена — молчим, чтобы не мешать */ }
         }
     }
