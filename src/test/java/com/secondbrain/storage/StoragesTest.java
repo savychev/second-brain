@@ -32,11 +32,18 @@ class StoragesTest {
     }
 
     @Test
-    @DisplayName("По умолчанию — JSON: ежедневный поток пользователя не меняется")
-    void defaultsToJson(@TempDir Path dir) {
-        assertInstanceOf(JsonNoteRepository.class, Storages.create(null, json(dir), db(dir)));
-        assertInstanceOf(JsonNoteRepository.class, Storages.create("", json(dir), db(dir)));
-        assertInstanceOf(JsonNoteRepository.class, Storages.create("   ", json(dir), db(dir)));
+    @DisplayName("По умолчанию — SQLite (переключено на шаге 5)")
+    void defaultsToSqlite(@TempDir Path dir) {
+        assertInstanceOf(SqliteNoteRepository.class, Storages.create(null, json(dir), db(dir)));
+        assertInstanceOf(SqliteNoteRepository.class, Storages.create("", json(dir), db(dir)));
+        assertInstanceOf(SqliteNoteRepository.class, Storages.create("   ", json(dir), db(dir)));
+    }
+
+    @Test
+    @DisplayName("Откат на JSON остаётся доступен одной переменной")
+    void rollbackToJsonStillWorks(@TempDir Path dir) {
+        assertInstanceOf(JsonNoteRepository.class,
+                Storages.create(Storages.JSON, json(dir), db(dir)));
     }
 
     @ParameterizedTest

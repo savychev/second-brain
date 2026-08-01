@@ -32,8 +32,15 @@ public final class Storages {
     public static final String JSON = "json";
     public static final String SQLITE = "sqlite";
 
-    /** Хранилище по умолчанию. Сменится на sqlite отдельным шагом, после проверки импорта. */
-    public static final String DEFAULT_KIND = JSON;
+    /**
+     * Хранилище по умолчанию — SQLite (с 31.07.2026, после проверенного импорта).
+     *
+     * <p>Откат на прежнее хранилище: {@code SECOND_BRAIN_STORAGE=json}. Обрати внимание,
+     * что откат возвращает файл JSON в том состоянии, в каком он был на момент
+     * переключения: заметки, захваченные уже в базу, в нём не появятся.
+     * Обратного переноса нет — он не нужен, пока откат делается сразу.
+     */
+    public static final String DEFAULT_KIND = SQLITE;
 
     private static final Path DEFAULT_JSON_FILE = Paths.get("data", "notes.json");
     private static final Path DEFAULT_DB_FILE = Paths.get("data", "second-brain.db");
