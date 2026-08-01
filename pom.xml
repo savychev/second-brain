@@ -118,6 +118,7 @@
                     <systemPropertyVariables>
                         <secondbrain.notion.config>${project.build.directory}/no-notion-config-in-tests.properties</secondbrain.notion.config>
                         <secondbrain.classifier.config>${project.build.directory}/no-classifier-config-in-tests.properties</secondbrain.classifier.config>
+                        <secondbrain.telegram.config>${project.build.directory}/no-telegram-config-in-tests.properties</secondbrain.telegram.config>
                     </systemPropertyVariables>
                     <environmentVariables>
                         <NOTION_TOKEN></NOTION_TOKEN>
@@ -130,6 +131,10 @@
                         <GEMINI_API_KEY></GEMINI_API_KEY>
                         <SECOND_BRAIN_CLASSIFIER></SECOND_BRAIN_CLASSIFIER>
                         <SECOND_BRAIN_CLASSIFIER_CONFIG></SECOND_BRAIN_CLASSIFIER_CONFIG>
+                        <!-- И бот: тест, поднимающий приложение целиком, не должен
+                             начать слушать настоящий Telegram. -->
+                        <TELEGRAM_BOT_TOKEN></TELEGRAM_BOT_TOKEN>
+                        <TELEGRAM_CONFIG_FILE></TELEGRAM_CONFIG_FILE>
                         <!--
                           И тот же принцип для данных: тест, поднимающий приложение
                           целиком, не должен открывать боевую базу с личными заметками.

@@ -206,6 +206,8 @@ public class ConsoleApp {
         // хранилище окажется пустым, и без пути это выглядит как потеря заметок.
         out.printf("  Хранилище: %s%n", repository.describe());
         out.printf("  Классификация: %s%n", ProviderConfig.load().describe());
+        out.printf("  Telegram-бот: %s%n",
+                com.secondbrain.telegram.TelegramConfig.load().describe());
         out.printf("  Всего заметок: %d%n", repository.count());
         for (NoteType type : NoteType.values()) {
             out.printf("    %-4s : %d%n", type, repository.findByType(type).size());

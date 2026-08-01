@@ -11,6 +11,8 @@ import com.secondbrain.notion.NotionFlushJob;
 import com.secondbrain.notion.NotionSyncService;
 import com.secondbrain.notion.SyncLock;
 import com.secondbrain.storage.NoteRepository;
+import com.secondbrain.telegram.TelegramBot;
+import com.secondbrain.telegram.TelegramConfig;
 import com.secondbrain.storage.Storages;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -109,6 +111,28 @@ public class AppConfig {
     @Bean
     public Classifier classifier(ProviderConfig providerConfig) {
         return Classifiers.create(providerConfig);
+    }
+
+    /** Настройки Telegram-бота: токен и список разрешённых чатов. */
+    @Bean
+    public TelegramConfig telegramConfig() {
+        return TelegramConfig.load();
+    }
+
+    /**
+     * Telegram-бот — мобильный вход.
+     *
+     * <p>Живёт только в режиме сервера: боту нужно постоянно слушать Telegram,
+     * а консольный запуск длится секунды. {@code initMethod}/{@code destroyMethod}
+     * привязывают его к жизни приложения, оставляя сам класс свободным
+     * от аннотаций Spring — как и вся остальная логика проекта.
+     *
+     * <p>Без токена бин создаётся, но {@code start()} ничего не делает:
+     * ненастроенный бот не мешает работе сервера.
+     */
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public TelegramBot telegramBot(TelegramConfig telegramConfig, CaptureService captureService) {
+        return new TelegramBot(telegramConfig, captureService);
     }
 
     /** Захват мысли: классифицировать → теги → сохранить → отправить. */
