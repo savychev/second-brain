@@ -120,7 +120,7 @@ public class OllamaClassifier implements Classifier {
         // Классификация — не творческая задача: просим наиболее вероятный ответ.
         options.put("temperature", 0);
         // Ответ короткий; ограничение бережёт время на слабом железе.
-        options.put("num_predict", 300);
+        options.put("num_predict", 150);
 
         return root.toString();
     }
