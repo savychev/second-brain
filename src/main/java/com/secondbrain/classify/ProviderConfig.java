@@ -17,6 +17,7 @@ import java.util.Properties;
  * путь отхода, если один из них станет недоступен или платным.
  *
  * <pre>
+ *   ollama    — модель на этом же компьютере: без аккаунта, ключа и лимитов
  *   gemini    — бесплатный уровень по обычному Google-аккаунту
  *   groq      — бесплатный уровень, открытые модели, строгая схема ответа
  *   anthropic — Claude, платно, лучшее качество
@@ -28,6 +29,10 @@ import java.util.Properties;
  * деньги без явной просьбы нельзя. Нет ни одного ключа — работают правила,
  * и это <b>не ошибка</b>: приложение полностью работоспособно без всякой модели.
  *
+ * <p>Ollama в автоопределение не входит: у неё нет ключа, по которому можно было бы
+ * понять «настроена ли она», а проверять запущенность службы пришлось бы сетевым
+ * запросом на каждом старте. Её выбирают явно: {@code classifier.provider=ollama}.
+ *
  * <p>Источники настроек, по возрастанию приоритета: файл {@code classifier.properties}
  * в корне проекта (не коммитится), затем переменные окружения.
  */
@@ -37,9 +42,20 @@ public final class ProviderConfig {
     public static final String CONFIG_PATH_PROPERTY = "secondbrain.classifier.config";
 
     public static final String RULES = "rules";
+    public static final String OLLAMA = "ollama";
     public static final String GEMINI = "gemini";
     public static final String GROQ = "groq";
     public static final String ANTHROPIC = "anthropic";
+
+    /**
+     * Модель Ollama по умолчанию.
+     *
+     * <p>4 миллиарда параметров — компромисс: русский язык знает, на процессоре
+     * отвечает за секунды, занимает 2.5 ГБ. Вариант {@code -instruct}, а не
+     * {@code -thinking}: для выбора одной категории из четырёх размышление
+     * только замедляет.
+     */
+    private static final String DEFAULT_OLLAMA_MODEL = "qwen3:4b-instruct";
 
     /**
      * Модель Gemini по умолчанию. Flash — быстрая и входит в бесплатный уровень;
@@ -68,12 +84,18 @@ public final class ProviderConfig {
     private final String apiKey;
     private final String model;
     private final Duration timeout;
+    private final String host;
 
     ProviderConfig(String provider, String apiKey, String model, Duration timeout) {
+        this(provider, apiKey, model, timeout, null);
+    }
+
+    ProviderConfig(String provider, String apiKey, String model, Duration timeout, String host) {
         this.provider = provider;
         this.apiKey = apiKey;
         this.model = model;
         this.timeout = (timeout == null) ? DEFAULT_TIMEOUT : timeout;
+        this.host = host;
     }
 
     /** Загружает настройки из файла и переменных окружения. */
@@ -103,6 +125,10 @@ public final class ProviderConfig {
                 "classifier.timeout.seconds"));
 
         return switch (provider) {
+            case OLLAMA -> new ProviderConfig(OLLAMA, null,
+                    orDefault(value("OLLAMA_MODEL", props, "ollama.model"), DEFAULT_OLLAMA_MODEL),
+                    timeout,
+                    value("OLLAMA_HOST", props, "ollama.host"));
             case GEMINI -> new ProviderConfig(GEMINI, geminiKey,
                     orDefault(value("GEMINI_MODEL", props, "gemini.model"), DEFAULT_GEMINI_MODEL),
                     timeout);
@@ -142,12 +168,15 @@ public final class ProviderConfig {
         String normalized = requested.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case RULES -> RULES;
+            // Ollama работает без ключа — проверять нечего.
+            case OLLAMA -> OLLAMA;
             case GEMINI -> requireKey(GEMINI, geminiKey, "GEMINI_API_KEY");
             case GROQ -> requireKey(GROQ, groqKey, "GROQ_API_KEY");
             case ANTHROPIC -> requireKey(ANTHROPIC, anthropicKey, "ANTHROPIC_API_KEY");
             default -> throw new IllegalArgumentException(
                     "Неизвестный классификатор: «" + requested + "». Допустимо: "
-                            + RULES + ", " + GEMINI + ", " + GROQ + ", " + ANTHROPIC + ".");
+                            + RULES + ", " + OLLAMA + ", " + GEMINI + ", " + GROQ + ", "
+                            + ANTHROPIC + ".");
         };
     }
 
@@ -218,10 +247,18 @@ public final class ProviderConfig {
         return timeout;
     }
 
+    /** Адрес службы Ollama; {@code null} — использовать адрес по умолчанию. */
+    public String host() {
+        return host;
+    }
+
     /** Как сейчас классифицируются мысли — для показа пользователю. */
     public String describe() {
         if (!isEnabled()) {
             return "правила (ключ модели не задан — см. " + CONFIG_FILE + ")";
+        }
+        if (OLLAMA.equals(provider)) {
+            return "ollama / " + model + " — локально (при сбое — правила)";
         }
         return provider + " / " + model + " (при сбое — правила)";
     }
