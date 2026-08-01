@@ -54,7 +54,7 @@ class TagMergeTest {
     void classifierTagsOnly(@TempDir Path dir) {
         CaptureService service = service(dir, suggesting(List.of("здоровье")));
 
-        CaptureService.Captured captured = service.capture("позвонить в банк", "console");
+        CaptureService.Captured captured = service.capture("записаться на приём", "console");
 
         assertEquals(List.of("здоровье"), captured.note().tags());
     }
