@@ -48,6 +48,17 @@ public class FallbackClassifier implements Classifier {
         }
     }
 
+    @Override
+    public void warmUp() {
+        try {
+            primary.warmUp();
+        } catch (RuntimeException e) {
+            // Прогрев — удобство, а не условие работы: не удался, значит первая
+            // мысль будет классифицирована правилами, как и раньше.
+            log.debug("Прогрев основного классификатора не удался", e);
+        }
+    }
+
     private static String shortReason(RuntimeException e) {
         String message = e.getMessage();
         if (message == null || message.isBlank()) {

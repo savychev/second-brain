@@ -80,22 +80,47 @@ public final class ProviderConfig {
      */
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(8);
 
+    /**
+     * Сколько Ollama держит модель в памяти после запроса.
+     *
+     * <p>Её значение по умолчанию — 5 минут, и для этой системы оно губительно.
+     * Замерено на этой машине: первый запрос к выгруженной модели занимает
+     * ~11 секунд (загрузка с диска), каждый следующий — ~2,4. При лимите
+     * ожидания в 8 секунд холодный запрос всегда проигрывает, и мысль уходит
+     * к правилам. А мысли пишут по несколько штук в день, то есть почти
+     * каждая попадала бы в холодную модель — этап 4 был бы куплен, но не
+     * работал.
+     *
+     * <p>Час выбран как рабочий день с перерывами: модель занимает около 3 ГБ,
+     * держать их сутками ради заметки в неделю незачем. Значение {@code -1}
+     * оставит модель в памяти навсегда, {@code 0} — выгрузит сразу.
+     */
+    private static final String DEFAULT_KEEP_ALIVE = "1h";
+
     private final String provider;
     private final String apiKey;
     private final String model;
     private final Duration timeout;
     private final String host;
+    private final String keepAlive;
 
     ProviderConfig(String provider, String apiKey, String model, Duration timeout) {
         this(provider, apiKey, model, timeout, null);
     }
 
     ProviderConfig(String provider, String apiKey, String model, Duration timeout, String host) {
+        this(provider, apiKey, model, timeout, host, DEFAULT_KEEP_ALIVE);
+    }
+
+    ProviderConfig(String provider, String apiKey, String model, Duration timeout,
+                   String host, String keepAlive) {
         this.provider = provider;
         this.apiKey = apiKey;
         this.model = model;
         this.timeout = (timeout == null) ? DEFAULT_TIMEOUT : timeout;
         this.host = host;
+        this.keepAlive = (keepAlive == null || keepAlive.isBlank())
+                ? DEFAULT_KEEP_ALIVE : keepAlive.trim();
     }
 
     /** Загружает настройки из файла и переменных окружения. */
@@ -128,7 +153,8 @@ public final class ProviderConfig {
             case OLLAMA -> new ProviderConfig(OLLAMA, null,
                     orDefault(value("OLLAMA_MODEL", props, "ollama.model"), DEFAULT_OLLAMA_MODEL),
                     timeout,
-                    value("OLLAMA_HOST", props, "ollama.host"));
+                    value("OLLAMA_HOST", props, "ollama.host"),
+                    value("OLLAMA_KEEP_ALIVE", props, "ollama.keep.alive"));
             case GEMINI -> new ProviderConfig(GEMINI, geminiKey,
                     orDefault(value("GEMINI_MODEL", props, "gemini.model"), DEFAULT_GEMINI_MODEL),
                     timeout);
@@ -245,6 +271,11 @@ public final class ProviderConfig {
 
     public Duration timeout() {
         return timeout;
+    }
+
+    /** Сколько Ollama держит модель в памяти после запроса. */
+    public String keepAlive() {
+        return keepAlive;
     }
 
     /** Адрес службы Ollama; {@code null} — использовать адрес по умолчанию. */

@@ -29,6 +29,46 @@ class FallbackClassifierTest {
     }
 
     @Test
+    @DisplayName("Прогрев доходит до основного классификатора")
+    void warmUpReachesPrimary() {
+        boolean[] warmed = {false};
+        Classifier smart = new Classifier() {
+            @Override
+            public ClassificationResult classify(String text) {
+                return ClassificationResult.of(NoteType.NOTE, 0.5, "неважно");
+            }
+
+            @Override
+            public void warmUp() {
+                warmed[0] = true;
+            }
+        };
+
+        new FallbackClassifier(smart, RULES).warmUp();
+
+        assertTrue(warmed[0], "иначе модель останется холодной и первая мысль уйдёт к правилам");
+    }
+
+    @Test
+    @DisplayName("Неудачный прогрев не мешает приложению запуститься")
+    void failedWarmUpIsSwallowed() {
+        Classifier smart = new Classifier() {
+            @Override
+            public ClassificationResult classify(String text) {
+                return ClassificationResult.of(NoteType.NOTE, 0.5, "неважно");
+            }
+
+            @Override
+            public void warmUp() {
+                throw new IllegalStateException("Ollama не запущена");
+            }
+        };
+
+        // Не должно бросить: прогрев — удобство, а не условие работы.
+        new FallbackClassifier(smart, RULES).warmUp();
+    }
+
+    @Test
     @DisplayName("Основной работает — его ответ и возвращается")
     void usesPrimaryWhenItWorks() {
         Classifier smart = text -> ClassificationResult.of(

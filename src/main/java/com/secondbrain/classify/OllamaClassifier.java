@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +42,9 @@ public class OllamaClassifier implements Classifier {
     public static final String DEFAULT_HOST = "http://localhost:11434";
 
     private static final ObjectMapper JSON = JsonMapper.builder().build();
+
+    /** Предел ожидания прогрева: загрузка модели с диска — дело небыстрое. */
+    private static final Duration WARMUP_TIMEOUT = Duration.ofMinutes(3);
 
     private final ProviderConfig config;
     private final String endpoint;
@@ -102,6 +106,43 @@ public class OllamaClassifier implements Classifier {
         return parse(extractContent(response.body()));
     }
 
+    /**
+     * Загружает модель в память заранее.
+     *
+     * <p>Замерено на машине владельца: запрос к выгруженной модели занимает
+     * ~11 секунд, к загруженной — ~2,4. Лимит ожидания — 8 секунд, поэтому
+     * без прогрева первая мысль после простоя гарантированно достаётся
+     * правилам, а не модели.
+     *
+     * <p>Ollama умеет это без выдумок: запрос с пустым списком сообщений
+     * только загружает модель и сразу отвечает. Настоящий текст никуда
+     * не отправляется.
+     */
+    @Override
+    public void warmUp() {
+        ObjectNode root = JSON.createObjectNode();
+        root.put("model", config.model());
+        root.putArray("messages");
+        root.put("keep_alive", config.keepAlive());
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint))
+                .header("Content-Type", "application/json; charset=utf-8")
+                // Прогрев не связан лимитом захвата: он никого не задерживает,
+                // а загрузка с диска заведомо дольше восьми секунд.
+                .timeout(WARMUP_TIMEOUT)
+                .POST(HttpRequest.BodyPublishers.ofString(root.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        try {
+            http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new ClassificationFailedException("прогрев Ollama не удался: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ClassificationFailedException("прогрев Ollama прерван", e);
+        }
+    }
+
     private String body(String text) {
         ObjectNode root = JSON.createObjectNode();
         root.put("model", config.model());
@@ -115,6 +156,11 @@ public class OllamaClassifier implements Classifier {
         // Схема ответа: Ollama ограничивает декодирование ею,
         // поэтому форма гарантируется, а не «ожидается».
         root.set("format", ClassificationPrompt.jsonSchema(JSON));
+
+        // Сколько держать модель в памяти после ответа. Без этого Ollama
+        // выгружает её через 5 минут, и следующая мысль снова ждёт загрузки
+        // с диска — дольше, чем мы готовы ждать.
+        root.put("keep_alive", config.keepAlive());
 
         ObjectNode options = root.putObject("options");
         // Классификация — не творческая задача: просим наиболее вероятный ответ.

@@ -2,6 +2,7 @@ package com.secondbrain.config;
 
 import com.secondbrain.classify.ProviderConfig;
 import com.secondbrain.classify.Classifier;
+import com.secondbrain.classify.ClassifierWarmup;
 import com.secondbrain.classify.Classifiers;
 import com.secondbrain.core.CaptureService;
 import com.secondbrain.notion.HttpNotionClient;
@@ -111,6 +112,18 @@ public class AppConfig {
     @Bean
     public Classifier classifier(ProviderConfig providerConfig) {
         return Classifiers.create(providerConfig);
+    }
+
+    /**
+     * Прогрев модели при старте.
+     *
+     * <p>Локальная модель загружается в память при первом обращении, и это
+     * дольше, чем мы готовы ждать при захвате мысли. Прогрев переносит
+     * задержку на старт сервера, где её никто не ждёт.
+     */
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public ClassifierWarmup classifierWarmup(Classifier classifier) {
+        return new ClassifierWarmup(classifier);
     }
 
     /** Настройки Telegram-бота: токен и список разрешённых чатов. */
