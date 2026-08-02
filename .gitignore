@@ -42,3 +42,6 @@ Thumbs.db
 
 # Claude Code local config
 .claude/
+
+# Журнал работы сервера
+logs/
