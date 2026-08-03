@@ -152,6 +152,28 @@ class ClassifiersTest {
     }
 
     @Test
+    @DisplayName("Локальной модели дано время на загрузку с диска")
+    void ollamaGetsTimeForColdStart(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir, "classifier.provider=ollama\n"));
+
+        // Замерено: загруженная модель отвечает за ~2,4 с, выгруженная — за ~11.
+        // Выгружается она неизбежно (сон компьютера, освобождение памяти), и
+        // первая мысль дня попадает именно в этот случай. Меньший предел
+        // означал бы, что каждое утро мысль классифицируют правила.
+        assertTrue(config.timeout().toSeconds() >= 20,
+                "иначе холодный запуск модели не уложится: " + config.timeout());
+    }
+
+    @Test
+    @DisplayName("Заданный вручную таймаут сильнее умолчания")
+    void explicitTimeoutWins(@TempDir Path dir) throws IOException {
+        ProviderConfig config = ProviderConfig.load(config(dir,
+                "classifier.provider=ollama\nclassifier.timeout.seconds=5\n"));
+
+        assertEquals(5, config.timeout().toSeconds());
+    }
+
+    @Test
     @DisplayName("Описание честно говорит, как классифицируются мысли")
     void describeIsHonest(@TempDir Path dir) throws IOException {
         String rules = ProviderConfig.load(dir.resolve("нет-такого.properties")).describe();
