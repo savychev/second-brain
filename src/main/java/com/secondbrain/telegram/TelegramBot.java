@@ -122,8 +122,11 @@ public class TelegramBot {
             }
             capture(message.chatId(), text);
         } catch (RuntimeException e) {
+            // Сюда попадают только настоящие потери: мысль не сохранена.
+            // Неудачная отправка ответа сюда не доходит — см. capture().
             log.warn("Не удалось обработать сообщение из чата {}", message.chatId(), e);
-            trySend(message.chatId(), "Что-то пошло не так: " + e.getMessage());
+            trySend(message.chatId(),
+                    "Не смог сохранить мысль: " + e.getMessage() + "\n\nПришли её ещё раз.");
         }
     }
 
@@ -162,7 +165,16 @@ public class TelegramBot {
 
     private void capture(long chatId, String text) {
         CaptureService.Captured captured = captureService.capture(text, "telegram");
-        client.sendMessage(chatId, reply(captured));
+        // Дальше этой строки мысль уже сохранена, и ответ — только вежливость.
+        // Поэтому отправляем без броска: сообщение «что-то пошло не так»
+        // означает «мысль потеряна, пришли заново», а здесь она цела, и такой
+        // ответ ввёл бы в заблуждение.
+        //
+        // Вдобавок истёкшее ожидание тут вообще ничего не говорит о доставке:
+        // Telegram сообщение принимает и показывает, просто подтверждение
+        // может идти дольше, чем мы согласны ждать. Ровно так и вышло 3 августа
+        // в 5:45 — разбор мысли пришёл, а следом ложное «не получилось».
+        trySend(chatId, reply(captured));
     }
 
     /** Ответ на захваченную мысль — то же, что видит пользователь в консоли. */

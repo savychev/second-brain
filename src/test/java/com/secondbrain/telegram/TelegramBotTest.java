@@ -54,6 +54,26 @@ class TelegramBotTest {
         }
     }
 
+    /** Клиент, у которого отправка не удаётся — как при пропавшей связи. */
+    private static class FailingClient extends TelegramClient {
+        int attempts;
+
+        FailingClient(TelegramConfig config) {
+            super(config, null);
+        }
+
+        @Override
+        public void sendMessage(long chatId, String text) {
+            attempts++;
+            throw new TelegramException("Telegram недоступен: request timed out");
+        }
+
+        @Override
+        public Updates getUpdates(long offset) {
+            return new Updates(offset, List.of());
+        }
+    }
+
     @TempDir
     Path dir;
 
@@ -199,6 +219,25 @@ class TelegramBotTest {
 
         assertEquals(1, client.sent.size());
         assertTrue(client.sent.get(0).contains("сломался"), client.sent.get(0));
+    }
+
+    @Test
+    @DisplayName("Не дошедший ответ не превращается в ложное «мысль потеряна»")
+    void failedReplyDoesNotClaimLoss() {
+        TelegramConfig config = new TelegramConfig("t", Set.of(OWNER), Duration.ofSeconds(1));
+        FailingClient failing = new FailingClient(config);
+        NoteRepository repo = new JsonNoteRepository(dir.resolve("notes.json"));
+        Classifier classifier = text -> ClassificationResult.of(
+                NoteType.TASK, 0.9, "тест", List.of());
+        TelegramBot bot = new TelegramBot(config, failing, new CaptureService(classifier, repo));
+
+        bot.handle(message(OWNER, "надо купить хлеб"));
+
+        assertEquals(1, repo.count(),
+                "мысль сохранена до отправки ответа — неудача отправки её не отменяет");
+        assertEquals(1, failing.attempts,
+                "ровно одна попытка: вторая была бы сообщением «не смог сохранить», "
+                        + "хотя мысль цела, а первый ответ мог и дойти");
     }
 
     @Test
